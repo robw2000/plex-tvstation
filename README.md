@@ -78,7 +78,7 @@ Some movies might have missing or incorrect metadata in Plex. You can override t
 Run the script:
 
 ```bash
-python robtv.py
+python tvstation.py
 ```
 
 The script will:
