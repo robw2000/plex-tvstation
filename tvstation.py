@@ -55,7 +55,7 @@ PLEX_GLOBALS = {
 	'plex_port': getenv('plex_port', '32400'),
 	'plex_api_token': getenv('plex_api_token', ''),
 	'user_id': getenv('user_id', '1'),
-	'max_episodes': getenv('max_episodes', 50),
+	'max_episodes': int(getenv('max_episodes', 50)),
 	'excluded_slugs': excluded_slugs,
 
 	'base_url': None,
@@ -315,6 +315,12 @@ def build_movie_list(ssn):
 		for i in range(len(indexes)):
 			unwatched_movies[indexes[i]] = movies[i]['movie']
 
+	print(f'{len(unwatched_movies)} unwatched movies')
+	for movie in unwatched_movies:
+		print(f'{movie["title"]}')
+
+	print('\n--------------------------------\n')
+	
 	movie_list = unwatched_movies + list(filter(lambda x: x['isWatched'], movie_list))
 
 	series_keys.append('movies')
