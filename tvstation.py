@@ -315,7 +315,7 @@ def build_movie_list(ssn):
 		for i in range(len(indexes)):
 			unwatched_movies[indexes[i]] = movies[i]['movie']
 
-	print(f'{len(unwatched_movies)} unwatched movies')
+	print(f'\n{len(unwatched_movies)} unwatched movies')
 	for movie in unwatched_movies:
 		print(f'{movie["title"]}')
 
@@ -347,6 +347,7 @@ def build_playlist_episode_keys():
 
 	# Build the playlist episode keys
 	episode_indexes = {}
+	print(f'Playlist episodes:\n')
 	while len(playlist_episode_keys) < max_episodes:
 		for series_key in series_keys:
 			next_index = episode_indexes.get(series_key, episode_indexes.get(series_key, 0))
