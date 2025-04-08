@@ -226,13 +226,9 @@ def build_series_episodes(ssn):
 			episodes = ssn.get(f'{base_url}/library/metadata/{season_key}/children', params={}).json()['MediaContainer']['Metadata']
 			for episode in episodes:
 				episode_key = episode['ratingKey']
-				viewed_at = episode.get('lastViewedAt', 0)
-				
-				# Reset last_viewed at if the episode has been watched most recently of the series but it was not finished
-				# This should cause it to be the first episode in the playlist
-				last_viewed_at = 0 if viewed_at > most_recent_viewed_at and episode_key not in unwatched_key_set else viewed_at
-				
-				most_recent_viewed_at = max(most_recent_viewed_at, viewed_at)
+				last_viewed_at = episode.get('lastViewedAt', 0)
+								
+				most_recent_viewed_at = max(most_recent_viewed_at, last_viewed_at)
 				
 				series_episodes[series_key].append({
 					'ratingKey': episode_key,
