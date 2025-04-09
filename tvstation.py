@@ -379,7 +379,7 @@ def build_movie_list(ssn):
 			# Use existing slug or create new one
 			movie_slug = movie.get('slug', create_slug(movie['title']))
 			movie_config = next((item for item in PLEX_GLOBALS['metadata'] if item.get('slug') == movie_slug), {})
-			if movie_config:
+			if movie_config and movie_config.get('year', 0) > 0:
 				movie['year'] = movie_config.get('year', 0)
 				movie['slug'] = movie_config.get('slug', movie_slug)
 			else:
@@ -409,7 +409,6 @@ def build_movie_list(ssn):
 					mark_as_unwatched(ssn, movie['ratingKey'])
 					unwatched_set.add(movie['ratingKey'])
 
-	movie_list = sorted(movie_list, key=lambda x: x['year'])
 	for movie in movie_list:
 		movie['isWatched'] = movie['ratingKey'] not in unwatched_set
 		movie['lastViewedAt'] = movie.get('lastViewedAt', 0)
