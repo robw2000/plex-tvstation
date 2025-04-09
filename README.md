@@ -13,6 +13,10 @@ This script automatically generates a playlist in Plex that includes all unwatch
 - Handles movies as a special "series" type
 - Maintains consistent ordering using internal Plex rating keys
 - Supports metadata overrides for movies with missing information
+- Automatically fetches missing movie years from OMDB API
+- Configurable rewatch delay for both movies and TV shows
+- Automatically marks content as unwatched after the rewatch delay period
+- Groups movies by series (e.g., Star Wars, John Wick) to maintain chronological order
 
 ## Requirements
 
@@ -30,7 +34,7 @@ This script automatically generates a playlist in Plex that includes all unwatch
    pip install -r requirements.txt
    ```
 3. Copy `.env.example` to `.env` and configure your environment variables
-4. (Optional) Configure `missing_metadata.json` for movies with missing metadata
+4. (Optional) Copy `local_config-example.json` to `local_config.json` and customize for your needs
 
 ## Configuration
 
@@ -46,7 +50,10 @@ plex_api_token=              # Your Plex API token
 user_id=1                    # Plex user ID (default: 1)
 max_episodes=50              # Maximum number of episodes in playlist
 playlist_name=My Favs TV     # Name of the playlist to create/update
-excluded_slugs=              # Comma-separated list of slugs to exclude
+
+# OMDB API configuration (optional)
+omdb_api_key=                # Your OMDB API key (for fetching movie years)
+omdb_api_url=http://www.omdbapi.com/  # OMDB API URL
 ```
 
 #### Finding Your Plex API Token
@@ -56,22 +63,37 @@ excluded_slugs=              # Comma-separated list of slugs to exclude
 3. Look for the `X-Plex-Token` query parameter in any Plex request
 4. Copy the token value to your `.env` file
 
-### Missing Metadata Configuration
+### Local Configuration
 
-Some movies might have missing or incorrect metadata in Plex. You can override this information using the `missing_metadata.json` file:
+Create a `local_config.json` file in the root directory to customize rewatch delays and metadata. You can use the provided `local_config-example.json` as a starting point:
 
 ```json
 {
-    "Movie Title": {
-        "year": 1980,
-        "slug": "movie-title"
-    }
+    "defaultRewatchDelayDays": {
+        "movies": 180,
+        "tv": 90
+    },
+    "excluded_slugs": ["example-series-1", "example-series-2"],
+    "metadata": [
+        {
+            "slug": "movie-title",
+            "title": "Movie Title",  # Optional: Alternative title to use for IMDB lookup
+            "year": 1980,
+            "rewatchDelayDays": 365
+        }
+    ]
 }
 ```
 
-- `Movie Title`: The exact title as it appears in Plex
-- `year`: The correct release year
-- `slug`: The Plex slug for the movie (used for sorting)
+- `defaultRewatchDelayDays`: Default number of days before content is marked as unwatched
+  - `movies`: Days for movies (default: 180)
+  - `tv`: Days for TV shows (default: 90)
+- `excluded_slugs`: Array of slugs to exclude from the playlist
+- `metadata`: Array of metadata overrides
+  - `slug`: The Plex slug for the content
+  - `title`: (Optional) Alternative title to use for IMDB lookup if the Plex title doesn't match
+  - `year`: The correct release year
+  - `rewatchDelayDays`: Custom rewatch delay for this specific content
 
 ## Usage
 
@@ -79,6 +101,12 @@ Run the script:
 
 ```bash
 python tvstation.py
+```
+
+Or specify a custom playlist name:
+
+```bash
+python tvstation.py -p "My Custom Playlist"
 ```
 
 The script will:
@@ -94,16 +122,19 @@ The script will:
 3. For TV Shows:
    - Identifies the next unwatched episode for each series
    - Alternates between series when building the playlist
-   - Excludes series where all episodes are watched (for 90 days)
+   - Excludes series where all episodes are watched (for the configured rewatch delay period)
 4. For Movies:
    - Treats all movies as a single "series"
    - Adds unwatched movies to the playlist
-   - Uses the `missing_metadata.json` file to correct any missing information
+   - Groups movies by series to maintain chronological order
+   - If at least two-thirds of movies are marked as watched, watched movies will be marked as unwatched after the rewatch delay period
+   - Uses OMDB API to fetch missing movie years
 5. The playlist is updated with the new content order
 
 ## Troubleshooting
 
-- If you see "Error: Movie with no year" messages, add the movie to `missing_metadata.json`
+- If you see "Warning: Could not determine year for movie" messages, add the movie to `local_config.json` or provide an OMDB API key
 - Ensure your Plex API token is correct and has the necessary permissions
 - Check that your Plex server is accessible at the configured IP and port
-- Verify that the user ID has access to the required libraries 
+- Verify that the user ID has access to the required libraries
+- If the script is marking content as unwatched too frequently or not often enough, change the rewatch delay in `local_config.json` 

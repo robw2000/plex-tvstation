@@ -9,8 +9,10 @@ The use case of this script is the following:
 	Movies are added to the list of shows as if all movies were part of a single series. Below, movies will be spoken of as a series.
 	The series that was most recently watched is marked and the next series is selected as the first series in the playlist.
 	From there, the next unwatched episode of each series are played, one per series, alternating between series.
-	When all episodes of a series are watched, the series is then excluded from the playlist until the most recent viewedAt time is more than 90 days ago.
+	When all episodes of a series are watched, the series is then excluded from the playlist until the most recent viewedAt time is more than the configured rewatch delay period.
 	Only unwatched movies and episodes are included in the playlist.
+	Movies are grouped by series (e.g., Star Wars, John Wick) to maintain chronological order within the playlist.
+	If the number of unwatched movies falls below 33% of the total (meaning at least two-thirds are watched), the script will automatically mark watched movies as unwatched based on the rewatch delay configuration.
 
 Requirements (python3 -m pip install [requirement]):
 	requests
@@ -25,7 +27,25 @@ Setup:
 						and finding the value of the X-Plex-Token query parameter on any plex request.
 		user_id: The user id of the user that will be used to access the plex server. If you only have one user, it's probably 1.
 		max_episodes: The maximum number of episodes that will be included in the playlist.
-		excluded_slugs: A comma-delimited list of slugs that will be excluded from the playlist.
+		omdb_api_key: (Optional) Your OMDB API key for fetching movie years.
+		omdb_api_url: (Optional) The OMDB API URL. Defaults to http://www.omdbapi.com/.
+
+	Create a local_config.json file to customize rewatch delays and metadata. You can use the provided local_config-example.json as a starting point:
+	{
+		"defaultRewatchDelayDays": {
+			"movies": 180,
+			"tv": 90
+		},
+		"excluded_slugs": ["example-series-1", "example-series-2"],
+		"metadata": [
+			{
+				"slug": "movie-title",
+				"title": "Movie Title",  # Optional: Alternative title to use for IMDB lookup
+				"year": 1980,
+				"rewatchDelayDays": 365
+			}
+		]
+	}
 
 	Run the script at an interval to regularly update the playlist.
 """
@@ -34,20 +54,25 @@ import time
 import hashlib
 import json
 from dotenv import load_dotenv
+import requests
 
 # Load environment variables from .env file
 load_dotenv()
 
-# Get excluded_slugs from environment variable and convert to array
-excluded_slugs_str = getenv('excluded_slugs', '')
-excluded_slugs = [slug.strip() for slug in excluded_slugs_str.split(',')] if excluded_slugs_str else []
-
 # Load missing metadata from JSON file
 try:
-	with open('missing_metadata.json', 'r') as f:
-		MISSING_METADATA = json.load(f)
+	with open('local_config.json', 'r') as f:
+		LOCAL_CONFIG = json.load(f)
 except FileNotFoundError:
-	MISSING_METADATA = {}
+	LOCAL_CONFIG = {
+		"defaultRewatchDelayDays": {
+			"movies": 180,
+			"tv": 90
+		},
+		"excluded_slugs": [],
+		"metadata": [],
+		"movie_series_slugs": []
+	}
 
 PLEX_GLOBALS = {
 	'playlist_name': getenv('playlist_name', 'My Favs TV'),
@@ -56,7 +81,12 @@ PLEX_GLOBALS = {
 	'plex_api_token': getenv('plex_api_token', ''),
 	'user_id': getenv('user_id', '1'),
 	'max_episodes': int(getenv('max_episodes', 50)),
-	'excluded_slugs': excluded_slugs,
+	'excluded_slugs': LOCAL_CONFIG.get('excluded_slugs', []),
+	'omdb_api_key': getenv('omdb_api_key', ''),
+	'omdb_api_url': getenv('omdb_api_url', 'http://www.omdbapi.com/'),
+	'defaultRewatchDelayDays': LOCAL_CONFIG.get('defaultRewatchDelayDays', {'movies': 180, 'tv': 90}),
+	'metadata': LOCAL_CONFIG.get('metadata', []),
+	'movie_series_slugs': LOCAL_CONFIG.get('movie_series_slugs', []),
 
 	'base_url': None,
 	'machine_id': None,
@@ -189,6 +219,41 @@ def mark_as_unwatched(ssn, media_key):
 	base_url = get_base_url()
 	ssn.get(f'{base_url}/:/unscrobble?key={media_key}')
 
+def create_slug(title):
+	"""
+	Creates a slug from a title by converting to lowercase, replacing spaces with dashes,
+	and removing any characters that are not letters or dashes.
+	"""
+	slug = ''.join(c.lower() if c.isalpha() or c == ' ' else '' for c in title)
+	return '-'.join(slug.split())
+
+def get_movie_year_from_imdb(movie_title):
+	"""
+	Attempts to get the release year of a movie from the IMDB API using the movie title.
+	Returns the year if found, otherwise returns 0.
+	"""
+	
+	try:
+		# Use the OMDB API which is free and doesn't require authentication
+		api_key = PLEX_GLOBALS['omdb_api_key']
+		api_url = PLEX_GLOBALS['omdb_api_url']
+		if not api_key:
+			print(f"Warning: OMDB API key not found. Cannot fetch year for movie: {movie_title}")
+			return 0
+		
+		# Keep cutting off the last word until we get a response
+		adjusted_movie_title = movie_title
+		while adjusted_movie_title != '':
+			response = requests.get(f"{api_url}?s={adjusted_movie_title}&apikey={api_key}")
+			data = response.json() if response.status_code == 200 and response.json().get('Response') == 'True' else None
+			if data and len(data.get('Search', [])) > 0:
+				return int(data.get('Search')[0].get('Year'), 0)
+			adjusted_movie_title = adjusted_movie_title.rsplit(' ', 1)[0] if len(adjusted_movie_title.split(' ')) > 1 else ''
+	except Exception as e:
+		print(f"Error fetching movie year from IMDB: {e}")
+	
+	return 0
+
 def build_series_episodes(ssn):
 	"""
 	Builds the series episodes for the Plex server.
@@ -203,7 +268,8 @@ def build_series_episodes(ssn):
 
 	# Get all series and their seasons
 	for s in series_list:
-		if s['slug'] in PLEX_GLOBALS['excluded_slugs']:
+		series_slug = s.get('slug', create_slug(s['title']))
+		if series_slug in PLEX_GLOBALS['excluded_slugs']:
 			continue
 
 		series_key = s['ratingKey']
@@ -224,7 +290,8 @@ def build_series_episodes(ssn):
 			unwatched_key_set = set([x['ratingKey'] for x in unwatched])
 
 			episodes = ssn.get(f'{base_url}/library/metadata/{season_key}/children', params={}).json()['MediaContainer']['Metadata']
-			for episode in episodes:
+			last_watched_episode = None
+			for i, episode in enumerate(episodes):
 				episode_key = episode['ratingKey']
 				last_viewed_at = episode.get('lastViewedAt', 0)
 								
@@ -240,15 +307,29 @@ def build_series_episodes(ssn):
 				})
 				if first_unwatched_episode is None and episode_key in unwatched_key_set:
 					first_unwatched_episode = episode_key
-					start_index = len(series_episodes[series_key]) - 1
+					start_index = i
+					last_watched_time = time.strftime("%A %B %d at %I:%M %p", time.localtime(last_watched_episode["lastViewedAt"])) if last_watched_episode['lastViewedAt'] > 0 else 'not watched yet'
+					next_episode_time = time.strftime("%A %B %d at %I:%M %p", time.localtime(series_episodes[series_key][start_index]["lastViewedAt"])) if series_episodes[series_key][start_index]["lastViewedAt"] > 0 else 'not watched yet'
+					# print(f'Next episode: {series_episodes[series_key][start_index]["title"]} ({next_episode_time})')
+					# print(f'Last watched episode: {last_watched_episode["title"]} ({last_watched_time})')
+				else:
+					last_watched_episode = episode
 
 		# If all episodes are watched, mark them as unwatched
 		all_watched = first_unwatched_episode is None
-		if all_watched and (time.time() - most_recent_viewed_at) >= (90 * 24 * 60 * 60):  # 90 days in seconds
-			mark_as_unwatched(ssn, series_key)
+		if all_watched:
+			# Get the rewatch delay days from LOCAL_CONFIG
+			series_config = next((item for item in PLEX_GLOBALS['metadata'] if item.get('slug') == series_slug), {})
+			rewatch_delay_days = series_config.get('rewatchDelayDays', PLEX_GLOBALS['defaultRewatchDelayDays']['tv'])
+			
+			if (time.time() - most_recent_viewed_at) >= (rewatch_delay_days * 24 * 60 * 60):  # Convert days to seconds
+				mark_as_unwatched(ssn, series_key)
+			else:
+				# If all episodes are watched but the rewatch delay has not passed, remove the series from the playlist
+				PLEX_GLOBALS['series_keys'].remove(series_key)
 
 		if start_index > 0:
-			series_episodes[series_key] = series_episodes[series_key][start_index:] + series_episodes[series_key][:start_index]
+			series_episodes[series_key] = series_episodes[series_key][start_index:]
 
 def build_movie_list(ssn):
 	"""
@@ -270,22 +351,74 @@ def build_movie_list(ssn):
 	results.raise_for_status()
 	results_json = results.json()
 	movie_list = results_json['MediaContainer']['Metadata']
+	
+	# Track total movies for the unwatched threshold
+	total_movies = len(movie_list)
+	
+	# Filter out movies whose slugs are in the excluded_slugs list
+	filtered_movie_list = []
 	for movie in movie_list:
-		if movie.get('year', 0) == 0 and movie['title'] not in MISSING_METADATA:
-			print(f"Error: Movie with no year: {movie['title']}")
-			exit(1)
-		elif movie.get('year', 0) == 0:
-			movie['year'] = MISSING_METADATA[movie['title']]['year']
-			movie['slug'] = MISSING_METADATA[movie['title']]['slug']
+		movie_slug = movie.get('slug', create_slug(movie['title']))
+		if movie_slug in PLEX_GLOBALS['excluded_slugs']:
+			continue
+		filtered_movie_list.append(movie)
+	
+	movie_list = filtered_movie_list
+	total_movies = len(movie_list)
+	
+	for movie in movie_list:
+		if movie.get('year', 0) == 0:
+			# Use existing slug or create new one
+			movie_slug = movie.get('slug', create_slug(movie['title']))
+			movie_config = next((item for item in PLEX_GLOBALS['metadata'] if item.get('slug') == movie_slug), {})
+			if movie_config:
+				movie['year'] = movie_config.get('year', 0)
+				movie['slug'] = movie_config.get('slug', movie_slug)
+			else:
+				# Try to get the year from IMDB API
+				# Use title from local config if available, otherwise use movie title
+				imdb_title = movie_config.get('title', movie['title'])
+				movie['year'] = get_movie_year_from_imdb(imdb_title)
+				if movie['year'] == 0:
+					print(f"Warning: Could not determine year for movie: {movie['title']}")
+
+	# Check if we've reached the threshold (33% or less unwatched)
+	unwatched_count = len(unwatched_set)
+	if unwatched_count / total_movies <= 0.33:
+		print(f"\nOnly {unwatched_count} of {total_movies} movies are unwatched ({(unwatched_count / total_movies) * 100:.1f}%)")
+		print("Checking for movies to mark as unwatched...")
+		
+		# Go through all movies and check rewatch delays for watched ones
+		for movie in movie_list:
+			if movie['ratingKey'] not in unwatched_set:  # If movie is watched
+				movie_slug = movie.get('slug', create_slug(movie['title']))
+				movie_config = next((item for item in PLEX_GLOBALS['metadata'] if item.get('slug') == movie_slug), {})
+				rewatch_delay_days = movie_config.get('rewatchDelayDays', PLEX_GLOBALS['defaultRewatchDelayDays']['movies'])
+				
+				last_viewed_at = movie.get('lastViewedAt', 0)
+				if last_viewed_at > 0 and (time.time() - last_viewed_at) >= (rewatch_delay_days * 24 * 60 * 60):
+					print(f"Marking as unwatched: {movie['title']} (last watched {time.strftime('%Y-%m-%d', time.localtime(last_viewed_at))})")
+					mark_as_unwatched(ssn, movie['ratingKey'])
+					unwatched_set.add(movie['ratingKey'])
 
 	movie_list = sorted(movie_list, key=lambda x: x['year'])
 	for movie in movie_list:
 		movie['isWatched'] = movie['ratingKey'] not in unwatched_set
 		movie['lastViewedAt'] = movie.get('lastViewedAt', 0)
+		if movie['title'].rsplit(' ', 1)[1] == str(movie['year']):
+			movie['title'] = movie['title'].rsplit(' ', 1)[0]
 		movie['title'] = f'{movie["title"]} ({str(movie["year"])})'
 		movie['series_title'] = 'Movies'
-		key_word_parts = list(filter(lambda x: x != 'the', movie['slug'].split('-')))
-		movie['key_word'] = key_word_parts[0] if key_word_parts[0] != 'star' else f'{key_word_parts[0]} {key_word_parts[1]}'
+		movie_slug = movie.get('slug', create_slug(movie['title']))
+		key_word_parts = list(filter(lambda x: x != 'the', movie_slug.split('-')))
+		
+		# Check if the movie slug starts with any of the movie series slugs from PLEX_GLOBALS
+		movie['key_word'] = key_word_parts[0]  # Default to first word
+		
+		for series_slug in PLEX_GLOBALS['movie_series_slugs']:
+			if movie_slug.startswith(series_slug):
+				movie['key_word'] = series_slug
+				break
 
 	# Sort the movies by a hash of the title which will randomize the sort but also ensure the sort is the same each time
 	unwatched_movies = list(filter(lambda x: not x['isWatched'], movie_list))
@@ -317,10 +450,8 @@ def build_movie_list(ssn):
 
 	print('\n--------------------------------\n')
 	
-	movie_list = unwatched_movies + list(filter(lambda x: x['isWatched'], movie_list))
-
 	series_keys.append('movies')
-	series_episodes['movies'] = movie_list
+	series_episodes['movies'] = unwatched_movies
 
 def build_playlist_episode_keys():
 	"""

@@ -177,3 +177,5 @@ cython_debug/
 .pypirc
 
 plexenv/
+
+local_config.json

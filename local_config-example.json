@@ -1,0 +1,29 @@
+{
+    "defaultRewatchDelayDays": {
+        "movies": 180,
+        "tv": 90
+    },
+    "excluded_slugs": [
+        "example-series-1",
+        "example-series-2"
+    ],
+    "movie_series_slugs": [
+        "example-series-1",
+        "example-series-2"
+    ],
+    "metadata": [
+        {
+            "title": "Superman II Donner Cut",
+            "year": 1980,
+            "slug": "superman-ii-donner-cut"
+        },
+        {
+            "slug": "silent-running",
+            "rewatchDelayDays": 365
+        },
+        {
+            "slug": "bobs-burgers",
+            "rewatchDelayDays": 30
+        }
+    ]
+}
