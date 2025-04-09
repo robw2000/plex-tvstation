@@ -283,6 +283,7 @@ def build_series_episodes(ssn):
 		start_index = 0
 		most_recent_viewed_at = 0
 		for season in series_seasons[series_key]:
+			overall_index = -1
 			season_key = season["ratingKey"]
 
 			unwatched_response = ssn.get(f'{base_url}/library/metadata/{season_key}/children?unwatched=1')
@@ -290,15 +291,17 @@ def build_series_episodes(ssn):
 			unwatched_key_set = set([x['ratingKey'] for x in unwatched])
 
 			episodes = ssn.get(f'{base_url}/library/metadata/{season_key}/children', params={}).json()['MediaContainer']['Metadata']
-			last_watched_episode = None
+			# last_watched_episode = None
 			for i, episode in enumerate(episodes):
+				overall_index += 1
 				episode_key = episode['ratingKey']
 				last_viewed_at = episode.get('lastViewedAt', 0)
-								
+				episode['index'] = overall_index
 				most_recent_viewed_at = max(most_recent_viewed_at, last_viewed_at)
 				
 				series_episodes[series_key].append({
 					'ratingKey': episode_key,
+					'index': overall_index,
 					'type': 'tv',
 					'lastViewedAt': last_viewed_at,
 					'isWatched': episode_key not in unwatched_key_set,
@@ -308,12 +311,12 @@ def build_series_episodes(ssn):
 				if first_unwatched_episode is None and episode_key in unwatched_key_set:
 					first_unwatched_episode = episode_key
 					start_index = i
-					last_watched_time = time.strftime("%A %B %d at %I:%M %p", time.localtime(last_watched_episode["lastViewedAt"])) if last_watched_episode['lastViewedAt'] > 0 else 'not watched yet'
-					next_episode_time = time.strftime("%A %B %d at %I:%M %p", time.localtime(series_episodes[series_key][start_index]["lastViewedAt"])) if series_episodes[series_key][start_index]["lastViewedAt"] > 0 else 'not watched yet'
+					# last_watched_time = time.strftime("%A %B %d at %I:%M %p", time.localtime(last_watched_episode["lastViewedAt"])) if last_watched_episode['lastViewedAt'] > 0 else 'not watched yet'
+					# next_episode_time = time.strftime("%A %B %d at %I:%M %p", time.localtime(series_episodes[series_key][start_index]["lastViewedAt"])) if series_episodes[series_key][start_index]["lastViewedAt"] > 0 else 'not watched yet'
 					# print(f'Next episode: {series_episodes[series_key][start_index]["title"]} ({next_episode_time})')
 					# print(f'Last watched episode: {last_watched_episode["title"]} ({last_watched_time})')
-				else:
-					last_watched_episode = episode
+				# else:
+				# 	last_watched_episode = episode
 
 		# If all episodes are watched, mark them as unwatched
 		all_watched = first_unwatched_episode is None
@@ -327,8 +330,9 @@ def build_series_episodes(ssn):
 			else:
 				# If all episodes are watched but the rewatch delay has not passed, remove the series from the playlist
 				PLEX_GLOBALS['series_keys'].remove(series_key)
+				del series_episodes[series_key]
 
-		if start_index > 0:
+		if start_index > 0 and series_episodes.get(series_key) is not None:
 			series_episodes[series_key] = series_episodes[series_key][start_index:]
 
 def build_movie_list(ssn):
@@ -351,6 +355,10 @@ def build_movie_list(ssn):
 	results.raise_for_status()
 	results_json = results.json()
 	movie_list = results_json['MediaContainer']['Metadata']
+
+	movie_list = sorted(movie_list, key=lambda x: hashlib.md5(x['title'].encode()).hexdigest())
+	for movie in movie_list:
+		movie['index'] = movie_list.index(movie)
 	
 	# Track total movies for the unwatched threshold
 	total_movies = len(movie_list)
@@ -405,7 +413,7 @@ def build_movie_list(ssn):
 	for movie in movie_list:
 		movie['isWatched'] = movie['ratingKey'] not in unwatched_set
 		movie['lastViewedAt'] = movie.get('lastViewedAt', 0)
-		if movie['title'].rsplit(' ', 1)[1] == str(movie['year']):
+		if str(movie["year"]) in movie['title']:
 			movie['title'] = movie['title'].rsplit(' ', 1)[0]
 		movie['title'] = f'{movie["title"]} ({str(movie["year"])})'
 		movie['series_title'] = 'Movies'
@@ -422,7 +430,6 @@ def build_movie_list(ssn):
 
 	# Sort the movies by a hash of the title which will randomize the sort but also ensure the sort is the same each time
 	unwatched_movies = list(filter(lambda x: not x['isWatched'], movie_list))
-	unwatched_movies.sort(key=lambda x: hashlib.md5(x.get('title', '').encode()).hexdigest())
 
 	# Group the movies by key word
 	key_word_map = {}
@@ -464,13 +471,7 @@ def build_playlist_episode_keys():
 	_, _, playlist_episode_keys, max_episodes = get_playlist_globals()
 
 	# Sort the the series keys by the date of the most recently watched episode
-	series_keys = sorted(series_keys, key=lambda x: series_episodes[x][-1]['lastViewedAt'])
-
-	# Keep the most recently viewed series first but shuffle the other series order
-	first_series_key = series_keys[0]
-	remainder_series_keys = sorted(series_keys[1:])
-	next_key_index = find_index(remainder_series_keys, lambda x: x > first_series_key)
-	series_keys = [first_series_key] + remainder_series_keys[next_key_index:] + remainder_series_keys[:next_key_index]
+	series_keys = sorted(series_keys, key=lambda x: series_episodes[x][0].get('index', 0))
 
 	# Build the playlist episode keys
 	episode_indexes = {}
@@ -478,6 +479,9 @@ def build_playlist_episode_keys():
 	while len(playlist_episode_keys) < max_episodes:
 		for series_key in series_keys:
 			next_index = episode_indexes.get(series_key, episode_indexes.get(series_key, 0))
+			if next_index >= len(series_episodes[series_key]):
+				continue
+
 			ekey = series_episodes[series_key][next_index]['ratingKey']
 			playlist_episode_keys.append(ekey)
 			episode_indexes[series_key] = (next_index + 1) % len(series_episodes[series_key])
