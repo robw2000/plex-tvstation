@@ -11,6 +11,12 @@
         "example-series-1",
         "example-series-2"
     ],
+    "restricted_play_months": {
+        "december": [
+            "christmas",
+            "new-year"
+        ]
+    },
     "metadata": [
         {
             "title": "Superman II Donner Cut",

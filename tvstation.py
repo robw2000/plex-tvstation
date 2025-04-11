@@ -49,12 +49,41 @@ Setup:
 
 	Run the script at an interval to regularly update the playlist.
 """
-from os import getenv
+from os import getenv, path, makedirs
 import time
 import hashlib
 import json
 from dotenv import load_dotenv
 import requests
+
+# Ensure logs directory exists
+logs_dir = path.join(path.dirname(path.abspath(__file__)), 'logs')
+if not path.exists(logs_dir):
+	makedirs(logs_dir)
+
+# Create log file if it doesn't exist
+log_file = path.join(logs_dir, 'tvstation.log')
+if not path.exists(log_file):
+	with open(log_file, 'w') as f:
+		f.write(f"Log file created at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+def log_message(*args, **kwargs):
+	"""
+	Log a message to both the log file and stdout.
+	This function takes the same arguments as the print function.
+	"""
+	# Get the current timestamp
+	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+	
+	# Format the message
+	message = ' '.join(str(arg) for arg in args)
+	
+	# Print to stdout
+	print(*args, **kwargs)
+	
+	# Write to log file
+	with open(log_file, 'a') as f:
+		f.write(f"[{timestamp}] {message}\n")
 
 # Load environment variables from .env file
 load_dotenv()
@@ -71,7 +100,8 @@ except FileNotFoundError:
 		},
 		"excluded_slugs": [],
 		"metadata": [],
-		"movie_series_slugs": []
+		"movie_series_slugs": [],
+		"restricted_play_months": {}
 	}
 
 PLEX_GLOBALS = {
@@ -87,6 +117,7 @@ PLEX_GLOBALS = {
 	'defaultRewatchDelayDays': LOCAL_CONFIG.get('defaultRewatchDelayDays', {'movies': 180, 'tv': 90}),
 	'metadata': LOCAL_CONFIG.get('metadata', []),
 	'movie_series_slugs': LOCAL_CONFIG.get('movie_series_slugs', []),
+	'restricted_play_months': LOCAL_CONFIG.get('restricted_play_months', {}),
 
 	'base_url': None,
 	'machine_id': None,
@@ -108,6 +139,7 @@ def load_globals(ssn):
 	the PLEX_GLOBALS dictionary with required values.
 	"""
 	get_base_url()
+	clean_restricted_play_months()
 	get_section_keys(ssn)
 	get_playlist_key(ssn)
 
@@ -194,9 +226,9 @@ def refresh_movies(ssn):
 
 	refresh_result = ssn.get(f'{base_url}/library/sections/{movie_section_key}/refresh?force=1')
 	if refresh_result.status_code != 200:
-		print(f"Error refreshing movie shows: {refresh_result.status_code}")
+		log_message(f"Error refreshing movie shows: {refresh_result.status_code}")
 	else:
-		print("Movie shows refreshed")
+		log_message("Movie shows refreshed")
 
 def refresh_tv_shows(ssn):
 	"""
@@ -207,9 +239,9 @@ def refresh_tv_shows(ssn):
 
 	refresh_result = ssn.get(f'{base_url}/library/sections/{tv_section_key}/refresh?force=1')
 	if refresh_result.status_code != 200:
-		print(f"Error refreshing tv shows: {refresh_result.status_code}")
+		log_message(f"Error refreshing tv shows: {refresh_result.status_code}")
 	else:
-		print("Tv shows refreshed")
+		log_message("Tv shows refreshed")
 
 def mark_as_unwatched(ssn, media_key):
 	"""
@@ -217,7 +249,7 @@ def mark_as_unwatched(ssn, media_key):
 	Scrobbling is the process of marking a media item as watched. This function marks a media item as unwatched.
 	"""
 	base_url = get_base_url()
-	ssn.get(f'{base_url}/:/unscrobble?key={media_key}')
+	ssn.get(f'{base_url}/:/unscrobble?identifier=com.plexapp.plugins.library&key={media_key}')
 
 def create_slug(title):
 	"""
@@ -238,7 +270,7 @@ def get_movie_year_from_imdb(movie_title):
 		api_key = PLEX_GLOBALS['omdb_api_key']
 		api_url = PLEX_GLOBALS['omdb_api_url']
 		if not api_key:
-			print(f"Warning: OMDB API key not found. Cannot fetch year for movie: {movie_title}")
+			log_message(f"Warning: OMDB API key not found. Cannot fetch year for movie: {movie_title}")
 			return 0
 		
 		# Keep cutting off the last word until we get a response
@@ -250,7 +282,7 @@ def get_movie_year_from_imdb(movie_title):
 				return int(data.get('Search')[0].get('Year'), 0)
 			adjusted_movie_title = adjusted_movie_title.rsplit(' ', 1)[0] if len(adjusted_movie_title.split(' ')) > 1 else ''
 	except Exception as e:
-		print(f"Error fetching movie year from IMDB: {e}")
+		log_message(f"Error fetching movie year from IMDB: {e}")
 	
 	return 0
 
@@ -282,41 +314,34 @@ def build_series_episodes(ssn):
 		first_unwatched_episode = None
 		start_index = 0
 		most_recent_viewed_at = 0
+		overall_index = -1
+
 		for season in series_seasons[series_key]:
-			overall_index = -1
 			season_key = season["ratingKey"]
 
-			unwatched_response = ssn.get(f'{base_url}/library/metadata/{season_key}/children?unwatched=1')
-			unwatched = unwatched_response.json().get('MediaContainer', {}).get('Metadata', [])
-			unwatched_key_set = set([x['ratingKey'] for x in unwatched])
-
 			episodes = ssn.get(f'{base_url}/library/metadata/{season_key}/children', params={}).json()['MediaContainer']['Metadata']
-			# last_watched_episode = None
 			for i, episode in enumerate(episodes):
 				overall_index += 1
 				episode_key = episode['ratingKey']
 				last_viewed_at = episode.get('lastViewedAt', 0)
+				view_count = episode.get('viewCount', 0)
 				episode['index'] = overall_index
-				most_recent_viewed_at = max(most_recent_viewed_at, last_viewed_at)
 				
 				series_episodes[series_key].append({
 					'ratingKey': episode_key,
 					'index': overall_index,
 					'type': 'tv',
 					'lastViewedAt': last_viewed_at,
-					'isWatched': episode_key not in unwatched_key_set,
+					'isWatched': view_count > 0,
 					'title': f'{episode["parentTitle"]} Episode {str(episode["index"])} - {episode["title"]}',
 					'series_title': episode['grandparentTitle']
 				})
-				if first_unwatched_episode is None and episode_key in unwatched_key_set:
-					first_unwatched_episode = episode_key
-					start_index = i
-					# last_watched_time = time.strftime("%A %B %d at %I:%M %p", time.localtime(last_watched_episode["lastViewedAt"])) if last_watched_episode['lastViewedAt'] > 0 else 'not watched yet'
-					# next_episode_time = time.strftime("%A %B %d at %I:%M %p", time.localtime(series_episodes[series_key][start_index]["lastViewedAt"])) if series_episodes[series_key][start_index]["lastViewedAt"] > 0 else 'not watched yet'
-					# print(f'Next episode: {series_episodes[series_key][start_index]["title"]} ({next_episode_time})')
-					# print(f'Last watched episode: {last_watched_episode["title"]} ({last_watched_time})')
-				# else:
-				# 	last_watched_episode = episode
+				if first_unwatched_episode is None and view_count == 0:
+					first_unwatched_episode = episode
+					start_index = overall_index
+				else:
+					# Save the viewed time of the last watched episode before the first unwatched episode was found
+					most_recent_viewed_at = last_viewed_at
 
 		# If all episodes are watched, mark them as unwatched
 		all_watched = first_unwatched_episode is None
@@ -338,18 +363,18 @@ def build_series_episodes(ssn):
 def build_movie_list(ssn):
 	"""
 	Builds the movie list for the Plex server.
-	Retrieves all unwatched movies from the Plex server and sorts them by year.
+	Retrieves all movies from the Plex server and sorts them by year.
 	The movies are then added to the series_episodes list as if they were a TV show.
 	The movies are then sorted by the date of the most recently watched movie, starting with the movie after the most recently watched movie.
+	Movies with slugs that match entries in restricted_play_months will only be included if the current month matches.
+	For example, movies with "christmas" in the slug will only be played in December if "christmas" is in the December entry in restricted_play_months.
 	"""
 	base_url = get_base_url()
 	movie_section_key, _ = get_section_keys(ssn)
 	series_keys, _, series_episodes = get_series_globals()
 
-	unwatched = ssn.get(f'{base_url}/library/sections/{movie_section_key}/unwatched').json()['MediaContainer']['Metadata']
-	unwatched_set = set({})
-	for unwatched_item in unwatched:
-		unwatched_set.add(unwatched_item['ratingKey'])
+	# Get current month for restricted play check
+	current_month = time.strftime("%B").lower()
 
 	results = ssn.get(f'{base_url}/library/sections/{movie_section_key}/all', params={})
 	results.raise_for_status()
@@ -363,12 +388,30 @@ def build_movie_list(ssn):
 	# Track total movies for the unwatched threshold
 	total_movies = len(movie_list)
 	
-	# Filter out movies whose slugs are in the excluded_slugs list
+	# Filter out movies whose slugs are in the excluded_slugs list or restricted by month
 	filtered_movie_list = []
 	for movie in movie_list:
 		movie_slug = movie.get('slug', create_slug(movie['title']))
 		if movie_slug in PLEX_GLOBALS['excluded_slugs']:
 			continue
+			
+		# Check if movie is restricted by month
+		is_restricted = False
+		for month, slugs in PLEX_GLOBALS['restricted_play_months'].items():
+			# Ensure slugs is a list, defaulting to empty if not present
+			slugs_list = slugs if isinstance(slugs, list) else []
+			if month.lower() != current_month.lower():
+				# Check if any of the partial slugs are contained within the movie's slug
+				for partial_slug in slugs_list:
+					if partial_slug.lower() in movie_slug:
+						is_restricted = True
+						break
+				if is_restricted:
+					break
+				
+		if is_restricted:
+			continue
+			
 		filtered_movie_list.append(movie)
 	
 	movie_list = filtered_movie_list
@@ -388,29 +431,28 @@ def build_movie_list(ssn):
 				imdb_title = movie_config.get('title', movie['title'])
 				movie['year'] = get_movie_year_from_imdb(imdb_title)
 				if movie['year'] == 0:
-					print(f"Warning: Could not determine year for movie: {movie['title']}")
+					log_message(f"Warning: Could not determine year for movie: {movie['title']}")
 
 	# Check if we've reached the threshold (33% or less unwatched)
-	unwatched_count = len(unwatched_set)
+	unwatched_count = len([m for m in movie_list if m.get('viewCount', 0) == 0])
 	if unwatched_count / total_movies <= 0.33:
-		print(f"\nOnly {unwatched_count} of {total_movies} movies are unwatched ({(unwatched_count / total_movies) * 100:.1f}%)")
-		print("Checking for movies to mark as unwatched...")
+		log_message(f"\nOnly {unwatched_count} of {total_movies} movies are unwatched ({(unwatched_count / total_movies) * 100:.1f}%)")
+		log_message("Checking for movies to mark as unwatched...")
 		
 		# Go through all movies and check rewatch delays for watched ones
 		for movie in movie_list:
-			if movie['ratingKey'] not in unwatched_set:  # If movie is watched
+			if movie.get('viewCount', 0) > 0:  # If movie is watched
 				movie_slug = movie.get('slug', create_slug(movie['title']))
 				movie_config = next((item for item in PLEX_GLOBALS['metadata'] if item.get('slug') == movie_slug), {})
 				rewatch_delay_days = movie_config.get('rewatchDelayDays', PLEX_GLOBALS['defaultRewatchDelayDays']['movies'])
 				
 				last_viewed_at = movie.get('lastViewedAt', 0)
 				if last_viewed_at > 0 and (time.time() - last_viewed_at) >= (rewatch_delay_days * 24 * 60 * 60):
-					print(f"Marking as unwatched: {movie['title']} (last watched {time.strftime('%Y-%m-%d', time.localtime(last_viewed_at))})")
+					log_message(f"Marking as unwatched: {movie['title']} (last watched {time.strftime('%Y-%m-%d', time.localtime(last_viewed_at))})")
 					mark_as_unwatched(ssn, movie['ratingKey'])
-					unwatched_set.add(movie['ratingKey'])
 
 	for movie in movie_list:
-		movie['isWatched'] = movie['ratingKey'] not in unwatched_set
+		movie['isWatched'] = movie.get('viewCount', 0) > 0
 		movie['lastViewedAt'] = movie.get('lastViewedAt', 0)
 		if str(movie["year"]) in movie['title']:
 			movie['title'] = movie['title'].rsplit(' ', 1)[0]
@@ -450,12 +492,6 @@ def build_movie_list(ssn):
 		for i in range(len(indexes)):
 			unwatched_movies[indexes[i]] = movies[i]['movie']
 
-	print(f'\n{len(unwatched_movies)} unwatched movies')
-	for movie in unwatched_movies:
-		print(f'{movie["title"]}')
-
-	print('\n--------------------------------\n')
-	
 	series_keys.append('movies')
 	series_episodes['movies'] = unwatched_movies
 
@@ -474,7 +510,7 @@ def build_playlist_episode_keys():
 
 	# Build the playlist episode keys
 	episode_indexes = {}
-	print(f'Playlist episodes:\n')
+	log_message(f'\nPlaylist episodes\n--------------------------')
 	while len(playlist_episode_keys) < max_episodes:
 		for series_key in series_keys:
 			next_index = episode_indexes.get(series_key, episode_indexes.get(series_key, 0))
@@ -486,7 +522,7 @@ def build_playlist_episode_keys():
 			episode_indexes[series_key] = (next_index + 1) % len(series_episodes[series_key])
 
 			episode = series_episodes[series_key][next_index]
-			print(f'{episode["series_title"]}: {episode["title"]}')
+			log_message(f'{episode["series_title"]}: {episode["title"]}')
 
 
 def get_playlist_episode(ssn):
@@ -561,6 +597,37 @@ def find_index(lst, predicate):
 	"""
 	return next((i for i, x in enumerate(lst) if predicate(x)), -1)
 
+def clean_restricted_play_months():
+	"""
+	Cleans the restricted_play_months dictionary to ensure all keys are valid month names in lowercase.
+	"""
+	valid_months = [
+		"january", "february", "march", "april", "may", "june",
+		"july", "august", "september", "october", "november", "december"
+	]
+	
+	validated_months = {}
+	
+	# Process each month in the input dictionary
+	for month, slugs in PLEX_GLOBALS['restricted_play_months'].items():
+		# Convert month to lowercase
+		month_lower = month.lower()
+		
+		# Check if it's a valid month
+		if month_lower in valid_months:
+			# Ensure slugs is a list
+			slugs_list = slugs if isinstance(slugs, list) else []
+			validated_months[month_lower] = slugs_list
+		else:
+			log_message(f"Warning: Invalid month '{month}' in restricted_play_months. Skipping...")
+	
+	# Add any missing months with empty lists
+	for month in valid_months:
+		if month not in validated_months:
+			validated_months[month] = []
+	
+	return validated_months
+
 # ------------------------------------------
 # Main
 # ------------------------------------------
@@ -581,7 +648,7 @@ if __name__ == '__main__':
 	#call function and process result
 	response = rob_tv(ssn=ssn)
 	if response.status_code != 200:
-		print("ERROR: Playlist could not be updated!")
+		log_message("ERROR: Playlist could not be updated!")
 		parser.error(response)
 
-	print("Playlist updated successfully!")
+	log_message("Playlist updated successfully!")

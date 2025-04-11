@@ -81,7 +81,11 @@ Create a `local_config.json` file in the root directory to customize rewatch del
             "year": 1980,
             "rewatchDelayDays": 365
         }
-    ]
+    ],
+    "restricted_play_months": {
+        "december": ["christmas", "santa", "elf"],
+        "october": ["halloween", "ghost", "vampire"]
+    }
 }
 ```
 
@@ -94,6 +98,11 @@ Create a `local_config.json` file in the root directory to customize rewatch del
   - `title`: (Optional) Alternative title to use for IMDB lookup if the Plex title doesn't match
   - `year`: The correct release year
   - `rewatchDelayDays`: Custom rewatch delay for this specific content
+- `restricted_play_months`: Dictionary mapping months to movie slugs that should only play during that month
+  - Keys are month names in lowercase (e.g., "december", "october")
+  - Values are arrays of movie slugs that should only play during that month
+  - Movies with matching slugs will be excluded from the playlist unless it's currently that month
+  - This only affects movies, not TV shows
 
 ## Usage
 
