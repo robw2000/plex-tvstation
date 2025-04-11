@@ -9,7 +9,7 @@ This script automatically generates a playlist in Plex that includes all unwatch
 - Creates a playlist with unwatched movies and TV shows
 - Starts with the next unwatched episode of each series
 - Alternates between series when adding episodes to the playlist
-- Automatically excludes series when all episodes are watched (for 90 days)
+- Automatically excludes series when all episodes are watched (for the configured rewatch delay period)
 - Handles movies as a special "series" type
 - Maintains consistent ordering using internal Plex rating keys
 - Supports metadata overrides for movies with missing information
@@ -17,6 +17,9 @@ This script automatically generates a playlist in Plex that includes all unwatch
 - Configurable rewatch delay for both movies and TV shows
 - Automatically marks content as unwatched after the rewatch delay period
 - Groups movies by series (e.g., Star Wars, John Wick) to maintain chronological order
+- Supports seasonal content restrictions (e.g., Christmas movies only in December)
+- Comprehensive logging system that tracks all operations
+- Automatically marks watched content as unwatched when unwatched content falls below 33%
 
 ## Requirements
 
@@ -82,6 +85,7 @@ Create a `local_config.json` file in the root directory to customize rewatch del
             "rewatchDelayDays": 365
         }
     ],
+    "movie_series_slugs": ["star-wars", "john-wick", "indiana-jones"],
     "restricted_play_months": {
         "december": ["christmas", "santa", "elf"],
         "october": ["halloween", "ghost", "vampire"]
@@ -98,6 +102,7 @@ Create a `local_config.json` file in the root directory to customize rewatch del
   - `title`: (Optional) Alternative title to use for IMDB lookup if the Plex title doesn't match
   - `year`: The correct release year
   - `rewatchDelayDays`: Custom rewatch delay for this specific content
+- `movie_series_slugs`: Array of movie series slugs to group together chronologically
 - `restricted_play_months`: Dictionary mapping months to movie slugs that should only play during that month
   - Keys are month names in lowercase (e.g., "december", "october")
   - Values are arrays of movie slugs that should only play during that month
@@ -123,6 +128,7 @@ The script will:
 2. Scan your library for unwatched content
 3. Create or update the specified playlist
 4. Add unwatched episodes and movies in the configured order
+5. Log to both the console and a log file in the `logs` directory
 
 ## How It Works
 
@@ -132,13 +138,25 @@ The script will:
    - Identifies the next unwatched episode for each series
    - Alternates between series when building the playlist
    - Excludes series where all episodes are watched (for the configured rewatch delay period)
+   - Automatically marks all episodes as unwatched after the rewatch delay period
 4. For Movies:
    - Treats all movies as a single "series"
    - Adds unwatched movies to the playlist
    - Groups movies by series to maintain chronological order
    - If at least two-thirds of movies are marked as watched, watched movies will be marked as unwatched after the rewatch delay period
    - Uses OMDB API to fetch missing movie years
+   - Applies seasonal restrictions based on the current month
 5. The playlist is updated with the new content order
+6. Messages are logged to both the console and a log file
+
+## Logging
+
+The script maintains a comprehensive logging system:
+- Logs are stored in the `logs` directory
+- Each run creates a new log file named `tvstation.log`
+- Logs include timestamps for all operations
+- Both console output and file logging are synchronized
+- Logs track playlist creation, content marking, and any errors or warnings
 
 ## Troubleshooting
 
@@ -146,4 +164,6 @@ The script will:
 - Ensure your Plex API token is correct and has the necessary permissions
 - Check that your Plex server is accessible at the configured IP and port
 - Verify that the user ID has access to the required libraries
-- If the script is marking content as unwatched too frequently or not often enough, change the rewatch delay in `local_config.json` 
+- If the script is marking content as unwatched too frequently or not often enough, change the rewatch delay in `local_config.json`
+- Check the log files in the `logs` directory for detailed information about script execution
+- If seasonal content isn't appearing when expected, verify the month names in `restricted_play_months` are lowercase 

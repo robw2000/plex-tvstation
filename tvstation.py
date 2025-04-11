@@ -13,6 +13,9 @@ The use case of this script is the following:
 	Only unwatched movies and episodes are included in the playlist.
 	Movies are grouped by series (e.g., Star Wars, John Wick) to maintain chronological order within the playlist.
 	If the number of unwatched movies falls below 33% of the total (meaning at least two-thirds are watched), the script will automatically mark watched movies as unwatched based on the rewatch delay configuration.
+	Movies with slugs that match entries in restricted_play_months will only be included if the current month matches.
+	For example, movies with "christmas" in the slug will only be played in December if "christmas" is in the December entry in restricted_play_months.
+	The script sends logs messages to both the console and a log file.
 
 Requirements (python3 -m pip install [requirement]):
 	requests
@@ -44,12 +47,18 @@ Setup:
 				"year": 1980,
 				"rewatchDelayDays": 365
 			}
-		]
+		],
+		"movie_series_slugs": ["star-wars", "john-wick", "indiana-jones"],
+		"restricted_play_months": {
+			"december": ["christmas", "santa", "elf"],
+			"october": ["halloween", "ghost", "vampire"]
+		}
 	}
 
 	Run the script at an interval to regularly update the playlist.
 """
 from os import getenv, path, makedirs
+import os
 import time
 import hashlib
 import json
@@ -63,9 +72,12 @@ if not path.exists(logs_dir):
 
 # Create log file if it doesn't exist
 log_file = path.join(logs_dir, 'tvstation.log')
-if not path.exists(log_file):
-	with open(log_file, 'w') as f:
-		f.write(f"Log file created at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+if path.exists(log_file):
+	os.remove(log_file)
+
+# Clear the log file
+with open(log_file, 'w') as f:
+	f.write(f"Log file created at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
 def log_message(*args, **kwargs):
 	"""
@@ -368,6 +380,8 @@ def build_movie_list(ssn):
 	The movies are then sorted by the date of the most recently watched movie, starting with the movie after the most recently watched movie.
 	Movies with slugs that match entries in restricted_play_months will only be included if the current month matches.
 	For example, movies with "christmas" in the slug will only be played in December if "christmas" is in the December entry in restricted_play_months.
+	Movies are grouped by series (e.g., Star Wars, John Wick) to maintain chronological order within the playlist.
+	If the number of unwatched movies falls below 33% of the total, the script will automatically mark watched movies as unwatched based on the rewatch delay configuration.
 	"""
 	base_url = get_base_url()
 	movie_section_key, _ = get_section_keys(ssn)
@@ -509,8 +523,11 @@ def build_playlist_episode_keys():
 	series_keys = sorted(series_keys, key=lambda x: series_episodes[x][0].get('index', 0))
 
 	# Build the playlist episode keys
+	log_message('')
+	log_message('Playlist episodes')
+	log_message('--------------------------')
+
 	episode_indexes = {}
-	log_message(f'\nPlaylist episodes\n--------------------------')
 	while len(playlist_episode_keys) < max_episodes:
 		for series_key in series_keys:
 			next_index = episode_indexes.get(series_key, episode_indexes.get(series_key, 0))
@@ -600,6 +617,9 @@ def find_index(lst, predicate):
 def clean_restricted_play_months():
 	"""
 	Cleans the restricted_play_months dictionary to ensure all keys are valid month names in lowercase.
+	This function validates the month names in the restricted_play_months configuration and ensures they are in lowercase.
+	It also ensures that the values are lists, defaulting to empty lists if not.
+	This is used to restrict certain movies to only play during specific months of the year.
 	"""
 	valid_months = [
 		"january", "february", "march", "april", "may", "june",
