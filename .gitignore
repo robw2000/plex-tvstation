@@ -179,3 +179,4 @@ cython_debug/
 plexenv/
 
 local_config.json
+missing_episodes.md
