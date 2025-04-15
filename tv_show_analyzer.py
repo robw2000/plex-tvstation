@@ -7,6 +7,7 @@ import requests
 from dotenv import load_dotenv
 from tabulate import tabulate
 from typing import Dict, List, Set, Tuple
+import datetime
 
 # Load environment variables
 load_dotenv()
@@ -160,11 +161,36 @@ def analyze_show(show_name: str, local_data: Dict[int, Set[str]]) -> List[Tuple[
 		print(f"  Local episodes in season {season}: {len(local_episodes)}")
 		print(f"  OMDB episodes in season {season}: {len(episode_info.get('Episodes', []))}")
 		
+		# Create a mapping of episode numbers to their filenames
+		local_episode_map = {}
+		for ep in local_episodes:
+			# Try to extract episode number from filename using multiple patterns
+			# Pattern 1: "E01" format
+			match = re.match(r"E(\d+)", ep)
+			if match:
+				ep_num = int(match.group(1))
+				local_episode_map[ep_num] = ep
+				continue
+				
+			# Pattern 2: "s01e01" format
+			match = re.search(r"s\d+e(\d+)", ep.lower())
+			if match:
+				ep_num = int(match.group(1))
+				local_episode_map[ep_num] = ep
+				continue
+				
+			# Pattern 3: Just look for any number after "e" or "E"
+			match = re.search(r"[eE](\d+)", ep)
+			if match:
+				ep_num = int(match.group(1))
+				local_episode_map[ep_num] = ep
+		
 		for episode in episode_info.get("Episodes", []):
 			episode_num = int(episode["Episode"])
 			episode_name = f"E{episode_num:02d} - {episode['Title']}"
 			
-			if not any(episode_name.startswith(f"E{episode_num:02d}") for ep in local_episodes):
+			# Check if we have this episode number in our local files
+			if episode_num not in local_episode_map:
 				missing_items.append((show_name, f"Season {season:02d}", episode_name))
 				
 	return missing_items
@@ -187,12 +213,64 @@ def main():
 	headers = ["Show", "Season", "Missing Item"]
 	markdown_table = tabulate(all_missing_items, headers=headers, tablefmt="pipe")
 	
+	# Generate summary section
+	show_summary = {}
+	for show, season, item in all_missing_items:
+		if show not in show_summary:
+			show_summary[show] = {}
+		
+		if season == "Error":
+			continue
+			
+		season_num = int(season.split()[1])
+		if season_num not in show_summary[show]:
+			show_summary[show][season_num] = []
+			
+		if item == "Entire season missing":
+			show_summary[show][season_num] = ["Entire season missing"]
+		else:
+			show_summary[show][season_num].append(item)
+	
+	# Format summary as markdown
+	summary_lines = ["\n## Summary of Shows with Missing Episodes\n"]
+	
+	for show in sorted(show_summary.keys()):
+		summary = []
+		for season_num in sorted(show_summary[show].keys()):
+			items = show_summary[show][season_num]
+			if items == ["Entire season missing"]:
+				summary.append(f"Season {season_num}")
+			else:
+				episode_nums = []
+				for item in items:
+					match = re.match(r"E(\d+)", item)
+					if match:
+						episode_nums.append(int(match.group(1)))
+				
+				if episode_nums:
+					if len(episode_nums) == 1:
+						summary.append(f"Season {season_num} missing episode {episode_nums[0]}")
+					else:
+						summary.append(f"Season {season_num} missing episodes {', '.join(map(str, sorted(episode_nums)))}")
+		
+		if summary:
+			summary_lines.append(f"* `{show}` - {'; '.join(summary)}")
+	
+	# Create logs directory if it doesn't exist
+	logs_dir = Path("logs")
+	logs_dir.mkdir(exist_ok=True)
+	
+	# Generate filename with date prefix
+	today = datetime.datetime.now().strftime("%Y-%m-%d")
+	output_file = logs_dir / f"{today}-missing_episodes.md"
+	
 	# Write to file
-	with open("missing_episodes.md", "w") as f:
+	with open(output_file, "w") as f:
 		f.write("# Missing TV Show Episodes\n\n")
 		f.write(markdown_table)
+		f.write("\n".join(summary_lines))
 		
-	print("\nAnalysis complete! Results written to missing_episodes.md")
+	print(f"\nAnalysis complete! Results written to {output_file}")
 
 if __name__ == "__main__":
 	main() 

@@ -70,8 +70,9 @@ logs_dir = path.join(path.dirname(path.abspath(__file__)), 'logs')
 if not path.exists(logs_dir):
 	makedirs(logs_dir)
 
-# Create log file if it doesn't exist
-log_file = path.join(logs_dir, 'tvstation.log')
+# Create log file with date prefix
+current_date = time.strftime('%Y-%m-%d')
+log_file = path.join(logs_dir, f'{current_date}-tvstation.log')
 if path.exists(log_file):
 	os.remove(log_file)
 
@@ -326,14 +327,14 @@ def build_series_episodes(ssn):
 		first_unwatched_episode = None
 		start_index = 0
 		most_recent_viewed_at = 0
-		overall_index = -1
+		overall_index = 0  # Changed from -1 to 0 to make it 1-indexed
 
 		for season in series_seasons[series_key]:
 			season_key = season["ratingKey"]
 
 			episodes = ssn.get(f'{base_url}/library/metadata/{season_key}/children', params={}).json()['MediaContainer']['Metadata']
 			for i, episode in enumerate(episodes):
-				overall_index += 1
+				overall_index += 1  # Increment first to make it 1-indexed
 				episode_key = episode['ratingKey']
 				last_viewed_at = episode.get('lastViewedAt', 0)
 				view_count = episode.get('viewCount', 0)
