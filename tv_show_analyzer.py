@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from tabulate import tabulate
 from typing import Dict, List, Set, Tuple
 import datetime
+import glob
+import time
 
 # Load environment variables
 load_dotenv()
@@ -195,6 +197,21 @@ def analyze_show(show_name: str, local_data: Dict[int, Set[str]]) -> List[Tuple[
 				
 	return missing_items
 
+def cleanup_old_logs(logs_dir: Path, days_to_keep: int = 3):
+	"""Delete log files older than the specified number of days"""
+	current_time = time.time()
+	cutoff_time = current_time - (days_to_keep * 24 * 60 * 60)  # Convert days to seconds
+	
+	# Get all markdown files in the logs directory
+	log_files = glob.glob(str(logs_dir / "*.md"))
+	
+	for log_file in log_files:
+		file_path = Path(log_file)
+		# Check if the file is older than the cutoff time
+		if file_path.stat().st_mtime < cutoff_time:
+			print(f"Deleting old log file: {file_path}")
+			file_path.unlink()
+
 def main():
 	# Analyze local shows
 	print("Analyzing local TV shows...")
@@ -260,15 +277,17 @@ def main():
 	logs_dir = Path("logs")
 	logs_dir.mkdir(exist_ok=True)
 	
-	# Generate filename with date prefix
-	today = datetime.datetime.now().strftime("%Y-%m-%d")
-	output_file = logs_dir / f"{today}-missing_episodes.md"
+	# Use a fixed filename that will be overwritten each time
+	output_file = logs_dir / "missing_episodes.md"
 	
 	# Write to file
 	with open(output_file, "w") as f:
 		f.write("# Missing TV Show Episodes\n\n")
 		f.write(markdown_table)
 		f.write("\n".join(summary_lines))
+	
+	# Clean up old log files
+	cleanup_old_logs(logs_dir)
 		
 	print(f"\nAnalysis complete! Results written to {output_file}")
 

@@ -62,6 +62,7 @@ import os
 import time
 import hashlib
 import json
+import glob
 from dotenv import load_dotenv
 import requests
 
@@ -69,6 +70,31 @@ import requests
 logs_dir = path.join(path.dirname(path.abspath(__file__)), 'logs')
 if not path.exists(logs_dir):
 	makedirs(logs_dir)
+
+def clean_old_logs():
+	"""
+	Deletes log files that are older than 3 days.
+	"""
+	current_time = time.time()
+	three_days_ago = current_time - (3 * 24 * 60 * 60)  # 3 days in seconds
+	
+	# Get all log files in the logs directory
+	log_files = glob.glob(path.join(logs_dir, '*.log'))
+	
+	for log_file in log_files:
+		# Get the file's modification time
+		file_time = os.path.getmtime(log_file)
+		
+		# If the file is older than 3 days, delete it
+		if file_time < three_days_ago:
+			try:
+				os.remove(log_file)
+				print(f"Deleted old log file: {log_file}")
+			except Exception as e:
+				print(f"Error deleting log file {log_file}: {e}")
+
+# Clean up old log files
+clean_old_logs()
 
 # Create log file with date prefix
 current_date = time.strftime('%Y-%m-%d')
@@ -91,8 +117,9 @@ def log_message(*args, **kwargs):
 	# Format the message
 	message = ' '.join(str(arg) for arg in args)
 	
-	# Print to stdout
-	print(*args, **kwargs)
+	# Print to stdout only if not in log-only mode
+	if not PLEX_GLOBALS.get('log_only', False):
+		print(*args, **kwargs)
 	
 	# Write to log file
 	with open(log_file, 'a') as f:
@@ -138,7 +165,7 @@ PLEX_GLOBALS = {
 	'movies_section_key': None,
 	'tv_section_key': None,
 
-	'series_keys': [],
+	'series_keys': [],  # List of objects with {key, last_viewed_at} properties
 	'series_seasons': {},
 	'series_episodes': {},
 
@@ -318,7 +345,6 @@ def build_series_episodes(ssn):
 			continue
 
 		series_key = s['ratingKey']
-		series_keys.append(series_key)
 		series_seasons[series_key] = ssn.get(f'{base_url}/library/metadata/{series_key}/children', params={}).json()['MediaContainer']['Metadata']
 		series_episodes[series_key] = []
 
@@ -326,14 +352,14 @@ def build_series_episodes(ssn):
 		# Track episode keys and whether they are watched or not
 		first_unwatched_episode = None
 		start_index = 0
-		most_recent_viewed_at = 0
 		overall_index = 0  # Changed from -1 to 0 to make it 1-indexed
+		most_recent_viewed_at = 0
 
 		for season in series_seasons[series_key]:
 			season_key = season["ratingKey"]
 
 			episodes = ssn.get(f'{base_url}/library/metadata/{season_key}/children', params={}).json()['MediaContainer']['Metadata']
-			for i, episode in enumerate(episodes):
+			for episode in episodes:
 				overall_index += 1  # Increment first to make it 1-indexed
 				episode_key = episode['ratingKey']
 				last_viewed_at = episode.get('lastViewedAt', 0)
@@ -354,7 +380,11 @@ def build_series_episodes(ssn):
 					start_index = overall_index
 				else:
 					# Save the viewed time of the last watched episode before the first unwatched episode was found
-					most_recent_viewed_at = last_viewed_at
+					if last_viewed_at > most_recent_viewed_at:
+						most_recent_viewed_at = last_viewed_at
+
+		# Add the series keys with the most recent viewed at time
+		series_keys.append({'key': series_key, 'last_viewed_at': most_recent_viewed_at})
 
 		# If all episodes are watched, mark them as unwatched
 		all_watched = first_unwatched_episode is None
@@ -367,7 +397,7 @@ def build_series_episodes(ssn):
 				mark_as_unwatched(ssn, series_key)
 			else:
 				# If all episodes are watched but the rewatch delay has not passed, remove the series from the playlist
-				PLEX_GLOBALS['series_keys'].remove(series_key)
+				PLEX_GLOBALS['series_keys'] = [obj for obj in PLEX_GLOBALS['series_keys'] if obj['key'] != series_key]
 				del series_episodes[series_key]
 
 		if start_index > 0 and series_episodes.get(series_key) is not None:
@@ -386,7 +416,7 @@ def build_movie_list(ssn):
 	"""
 	base_url = get_base_url()
 	movie_section_key, _ = get_section_keys(ssn)
-	series_keys, _, series_episodes = get_series_globals()
+	_, _, series_episodes = get_series_globals()
 
 	# Get current month for restricted play check
 	current_month = time.strftime("%B").lower()
@@ -431,8 +461,14 @@ def build_movie_list(ssn):
 	
 	movie_list = filtered_movie_list
 	total_movies = len(movie_list)
-	
+	most_recent_viewed_at = 0
+
 	for movie in movie_list:
+		# Track the most recent viewed movie
+		last_viewed_at = movie.get('lastViewedAt', 0)
+		if last_viewed_at > most_recent_viewed_at:
+			most_recent_viewed_at = last_viewed_at
+
 		if movie.get('year', 0) == 0:
 			# Use existing slug or create new one
 			movie_slug = movie.get('slug', create_slug(movie['title']))
@@ -507,7 +543,8 @@ def build_movie_list(ssn):
 		for i in range(len(indexes)):
 			unwatched_movies[indexes[i]] = movies[i]['movie']
 
-	series_keys.append('movies')
+	# Add movies to series_keys with last_viewed_at of 0
+	PLEX_GLOBALS['series_keys'].append({'key': 'movies', 'last_viewed_at': most_recent_viewed_at})
 	series_episodes['movies'] = unwatched_movies
 
 def build_playlist_episode_keys():
@@ -520,8 +557,8 @@ def build_playlist_episode_keys():
 	series_keys, _, series_episodes = get_series_globals()
 	_, _, playlist_episode_keys, max_episodes = get_playlist_globals()
 
-	# Sort the the series keys by the date of the most recently watched episode
-	series_keys = sorted(series_keys, key=lambda x: series_episodes[x][0].get('index', 0))
+	# Sort the series keys by last_viewed_at (most recent viewed last)
+	series_keys = sorted(series_keys, key=lambda x: x['last_viewed_at'], reverse=False)
 
 	# Build the playlist episode keys
 	log_message('')
@@ -530,7 +567,8 @@ def build_playlist_episode_keys():
 
 	episode_indexes = {}
 	while len(playlist_episode_keys) < max_episodes:
-		for series_key in series_keys:
+		for series_obj in series_keys:
+			series_key = series_obj['key']
 			next_index = episode_indexes.get(series_key, episode_indexes.get(series_key, 0))
 			if next_index >= len(series_episodes[series_key]):
 				continue
@@ -571,7 +609,7 @@ def get_playlist_episode(ssn):
 
 def replace_playlist_items(ssn):
 	"""
-	Replaces the items in the current version of the playlist with the new list of episode keys.
+	Creates the playlist if it doesn't exist, or updates it if it does.
 	"""
 	base_url = get_base_url()
 	machine_id = get_machine_id(ssn)
@@ -579,10 +617,12 @@ def replace_playlist_items(ssn):
 
 	params = {'type': 'video', 'title': playlist_name, 'smart': '0', 'uri': f'server://{machine_id}/com.plexapp.plugins.library/library/metadata/{",".join(playlist_episode_keys)}'}
 
-	if playlist_key is not None:
-		ssn.delete(f'{base_url}/playlists/{playlist_key}', params=params)
-
-	response = ssn.post(f'{base_url}/playlists', params=params)
+	if playlist_key is None:
+		# Create new playlist
+		response = ssn.post(f'{base_url}/playlists', params=params)
+	else:
+		# Update existing playlist
+		response = ssn.put(f'{base_url}/playlists/{playlist_key}', params=params)
 
 	return response
 
@@ -663,8 +703,19 @@ if __name__ == '__main__':
 	#setup arg parsing
 	parser = argparse.ArgumentParser(description='Make a playlist out of all tv shows and movies, starting with the next unwatched episode of each series or movie by year')
 	parser.add_argument('-p','--PlaylistName', type=str, help='Name of target playlist', default=PLEX_GLOBALS['playlist_name'])
+	parser.add_argument('-l', '--log-only', action='store_true', help='Only write to log files, do not print to stdout')
 
 	args = parser.parse_args()
+
+	# Set log-only mode if specified
+	PLEX_GLOBALS['log_only'] = args.log_only
+	
+	# If log-only mode is enabled, print a log entry to stdout
+	if args.log_only:
+		timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+		script_name = os.path.basename(__file__)
+		args_str = ' '.join([f"{k}={v}" for k, v in vars(args).items() if v is not None])
+		print(f"[{timestamp}] Running {script_name} with args: {args_str}")
 
 	#call function and process result
 	response = rob_tv(ssn=ssn)
