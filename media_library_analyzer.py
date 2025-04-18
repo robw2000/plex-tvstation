@@ -16,6 +16,7 @@ load_dotenv()
 
 # Constants
 TV_SHOWS_PATH = Path("/mnt/g/plex/TV Shows")
+MOVIES_PATH = Path("/mnt/g/plex/Movies")
 OMDB_API_KEY = os.getenv("omdb_api_key")
 OMDB_API_URL = os.getenv("omdb_api_url")
 
@@ -197,6 +198,36 @@ def analyze_show(show_name: str, local_data: Dict[int, Set[str]]) -> List[Tuple[
 				
 	return missing_items
 
+def analyze_local_movies() -> List[Tuple[str, str, str]]:
+	"""Analyze local movie folders and return list of empty or invalid folders"""
+	missing_items = []
+	
+	print(f"Looking for movies in: {MOVIES_PATH}")
+	
+	for movie_path in MOVIES_PATH.iterdir():
+		if not movie_path.is_dir():
+			continue
+			
+		movie_name = movie_path.name
+		print(f"Found movie: {movie_name}")
+		
+		# Check if folder is empty
+		if not any(movie_path.iterdir()):
+			missing_items.append((movie_name, "Movie", "Empty folder"))
+			continue
+			
+		# Check if folder only contains non-MKV files
+		has_mkv = False
+		for file in movie_path.iterdir():
+			if file.suffix.lower() == '.mkv':
+				has_mkv = True
+				break
+				
+		if not has_mkv:
+			missing_items.append((movie_name, "Movie", "No MKV files found"))
+			
+	return missing_items
+
 def cleanup_old_logs(logs_dir: Path, days_to_keep: int = 3):
 	"""Delete log files older than the specified number of days"""
 	current_time = time.time()
@@ -226,6 +257,11 @@ def main():
 		missing_items = analyze_show(show_name, seasons)
 		all_missing_items.extend(missing_items)
 		
+	# Analyze local movies
+	print("\nAnalyzing local movies...")
+	movie_missing_items = analyze_local_movies()
+	all_missing_items.extend(movie_missing_items)
+		
 	# Create markdown report
 	headers = ["Show", "Season", "Missing Item"]
 	markdown_table = tabulate(all_missing_items, headers=headers, tablefmt="pipe")
@@ -239,6 +275,12 @@ def main():
 		if season == "Error":
 			continue
 			
+		if season == "Movie":
+			if "Movie" not in show_summary[show]:
+				show_summary[show]["Movie"] = []
+			show_summary[show]["Movie"].append(item)
+			continue
+			
 		season_num = int(season.split()[1])
 		if season_num not in show_summary[show]:
 			show_summary[show][season_num] = []
@@ -249,14 +291,28 @@ def main():
 			show_summary[show][season_num].append(item)
 	
 	# Format summary as markdown
-	summary_lines = ["\n## Summary of Shows with Missing Episodes\n"]
+	summary_lines = ["\n## Summary of Missing Content\n"]
+	
+	# Create separate lists for shows with missing episodes and movies
+	shows_with_missing_episodes = []
+	shows_with_missing_movies = []
 	
 	for show in sorted(show_summary.keys()):
-		summary = []
+		episode_summary = []
+		movie_summary = []
+		
+		# Handle movies first
+		if "Movie" in show_summary[show]:
+			movie_summary.append(f"{', '.join(show_summary[show]['Movie'])}")
+			
+		# Then handle TV show seasons
 		for season_num in sorted(show_summary[show].keys()):
+			if season_num == "Movie":
+				continue
+				
 			items = show_summary[show][season_num]
 			if items == ["Entire season missing"]:
-				summary.append(f"Season {season_num}")
+				episode_summary.append(f"Season {season_num}")
 			else:
 				episode_nums = []
 				for item in items:
@@ -265,13 +321,36 @@ def main():
 						episode_nums.append(int(match.group(1)))
 				
 				if episode_nums:
-					if len(episode_nums) == 1:
-						summary.append(f"Season {season_num} missing episode {episode_nums[0]}")
+					# Get the total number of episodes in this season from OMDB
+					episode_info = get_episode_info(show, season_num)
+					total_episodes = len(episode_info.get("Episodes", [])) if episode_info.get("Response") == "True" else 0
+					
+					# If we have no episode info or all episodes are missing
+					if total_episodes == 0 or len(episode_nums) >= total_episodes:
+						episode_summary.append(f"Season {season_num}")
+					# If more than half of the episodes are missing
+					elif len(episode_nums) > total_episodes / 2:
+						episode_summary.append(f"Season {season_num} (most episodes missing)")
 					else:
-						summary.append(f"Season {season_num} missing episodes {', '.join(map(str, sorted(episode_nums)))}")
+						if len(episode_nums) == 1:
+							episode_summary.append(f"Season {season_num} missing episode {episode_nums[0]}")
+						else:
+							episode_summary.append(f"Season {season_num} missing episodes {', '.join(map(str, sorted(episode_nums)))}")
 		
-		if summary:
-			summary_lines.append(f"* `{show}` - {'; '.join(summary)}")
+		if episode_summary:
+			shows_with_missing_episodes.append(f"* `{show}` - {'; '.join(episode_summary)}")
+		
+		if movie_summary:
+			shows_with_missing_movies.append(f"* `{show}` - {'; '.join(movie_summary)}")
+	
+	# Add the sections to the summary
+	if shows_with_missing_episodes:
+		summary_lines.append("\n### Missing Episodes")
+		summary_lines.extend(shows_with_missing_episodes)
+	
+	if shows_with_missing_movies:
+		summary_lines.append("\n### Missing Movies")
+		summary_lines.extend(shows_with_missing_movies)
 	
 	# Create logs directory if it doesn't exist
 	logs_dir = Path("logs")
@@ -282,7 +361,7 @@ def main():
 	
 	# Write to file
 	with open(output_file, "w") as f:
-		f.write("# Missing TV Show Episodes\n\n")
+		f.write("# Missing TV Show Episodes and Movies\n\n")
 		f.write(markdown_table)
 		f.write("\n".join(summary_lines))
 	

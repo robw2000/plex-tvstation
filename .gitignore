@@ -181,3 +181,6 @@ plexenv/
 local_config.json
 
 logs/
+
+movie_wishlist.txt
+tv_wishlist.txt

@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Start in the right location
+
+- Change the working folder to `$HOME/repos/plex-tvstation`

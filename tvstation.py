@@ -510,13 +510,15 @@ def build_movie_list(ssn):
 		movie['title'] = f'{movie["title"]} ({str(movie["year"])})'
 		movie['series_title'] = 'Movies'
 		movie_slug = movie.get('slug', create_slug(movie['title']))
-		key_word_parts = list(filter(lambda x: x != 'the', movie_slug.split('-')))
+		key_word_parts = filter_common_words(movie_slug)
 		
 		# Check if the movie slug starts with any of the movie series slugs from PLEX_GLOBALS
 		movie['key_word'] = key_word_parts[0]  # Default to first word
 		
 		for series_slug in PLEX_GLOBALS['movie_series_slugs']:
-			if movie_slug.startswith(series_slug):
+			series_slug_parts = filter_common_words(series_slug)
+			trimmed_series_slug = '-'.join(series_slug_parts)
+			if trimmed_series_slug in movie_slug:
 				movie['key_word'] = series_slug
 				break
 
@@ -617,12 +619,12 @@ def replace_playlist_items(ssn):
 
 	params = {'type': 'video', 'title': playlist_name, 'smart': '0', 'uri': f'server://{machine_id}/com.plexapp.plugins.library/library/metadata/{",".join(playlist_episode_keys)}'}
 
-	if playlist_key is None:
-		# Create new playlist
-		response = ssn.post(f'{base_url}/playlists', params=params)
-	else:
-		# Update existing playlist
-		response = ssn.put(f'{base_url}/playlists/{playlist_key}', params=params)
+	if playlist_key is not None:
+		# Delete existing playlist
+		response = ssn.delete(f'{base_url}/playlists/{playlist_key}')
+
+	# Create new playlist
+	response = ssn.post(f'{base_url}/playlists', params=params)
 
 	return response
 
@@ -688,6 +690,13 @@ def clean_restricted_play_months():
 			validated_months[month] = []
 	
 	return validated_months
+
+def filter_common_words(slug):
+	"""
+	Filters out common words from a slug.
+	Returns a list of words with common words like 'the', 'a', 'an' removed.
+	"""
+	return list(filter(lambda x: x != 'the' and x != 'a' and x != 'an', slug.split('-')))
 
 # ------------------------------------------
 # Main
