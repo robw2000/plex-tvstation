@@ -1,17 +1,18 @@
 {
+    "tvShowLimit": 5,
     "defaultRewatchDelayDays": {
         "movies": 180,
         "tv": 90
     },
-    "excluded_slugs": [
+    "excludedSlugs": [
         "example-series-1",
         "example-series-2"
     ],
-    "movie_series_slugs": [
+    "movieSeriesSlugs": [
         "example-series-1",
         "example-series-2"
     ],
-    "restricted_play_months": {
+    "restrictedPlayMonths": {
         "december": [
             "christmas",
             "new-year"
@@ -29,7 +30,13 @@
         },
         {
             "slug": "bobs-burgers",
-            "rewatchDelayDays": 30
+            "rewatchDelayDays": 30,
+            "alwaysInclude": true
+        },
+        {
+            "slug": "example-series-3",
+            "rewatchDelayDays": 180,
+            "alwaysInclude": true
         }
     ]
 }
