@@ -89,9 +89,9 @@ Create a `local_config.json` file in the root directory to customize rewatch del
 
 ```json
 {
-    "defaultRewatchDelayDays": {
-        "movies": 180,
-        "tv": 90
+    "defaultRewatchDelay": {
+        "movies": "180 days",
+        "tv": "90 days"
     },
     "excluded_slugs": ["example-series-1", "example-series-2"],
     "metadata": [
@@ -99,7 +99,7 @@ Create a `local_config.json` file in the root directory to customize rewatch del
             "slug": "movie-title",
             "title": "Movie Title",  # Optional: Alternative title to use for IMDB lookup
             "year": 1980,
-            "rewatchDelayDays": 365
+            "rewatchDelay": "1 year"
         }
     ],
     "movie_series_slugs": ["star-wars", "john-wick", "indiana-jones"],
@@ -110,15 +110,18 @@ Create a `local_config.json` file in the root directory to customize rewatch del
 }
 ```
 
-- `defaultRewatchDelayDays`: Default number of days before content is marked as unwatched
-  - `movies`: Days for movies (default: 180)
-  - `tv`: Days for TV shows (default: 90)
+- `defaultRewatchDelay`: Default duration before content is marked as unwatched
+  - `movies`: Duration for movies (default: "180 days")
+  - `tv`: Duration for TV shows (default: "90 days")
+  - Values can be specified as integers (for backward compatibility) or strings in the format "{number} {unit}" where unit is one of: day, days, month, months, year, years
+  - Examples: "7 days", "1 month", "1 year", "3 years"
+  - If an invalid format is provided, it will default to "1 year"
 - `excluded_slugs`: Array of slugs to exclude from the playlist
 - `metadata`: Array of metadata overrides
   - `slug`: The Plex slug for the content
   - `title`: (Optional) Alternative title to use for IMDB lookup if the Plex title doesn't match
   - `year`: The correct release year
-  - `rewatchDelayDays`: Custom rewatch delay for this specific content
+  - `rewatchDelay`: Custom rewatch delay for this specific content (same format as defaultRewatchDelay)
 - `movie_series_slugs`: Array of movie series slugs to group together chronologically
 - `restricted_play_months`: Dictionary mapping months to movie slugs that should only play during that month
   - Keys are month names in lowercase (e.g., "december", "october")

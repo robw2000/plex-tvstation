@@ -1,8 +1,8 @@
 {
     "tvShowLimit": 5,
-    "defaultRewatchDelayDays": {
-        "movies": 180,
-        "tv": 90
+    "defaultRewatchDelay": {
+        "movies": "180 days",
+        "tv": "90 days"
     },
     "excludedSlugs": [
         "example-series-1",
@@ -26,16 +26,16 @@
         },
         {
             "slug": "silent-running",
-            "rewatchDelayDays": 365
+            "rewatchDelay": "1 year"
         },
         {
             "slug": "bobs-burgers",
-            "rewatchDelayDays": 30,
+            "rewatchDelay": "30 days",
             "alwaysInclude": true
         },
         {
             "slug": "example-series-3",
-            "rewatchDelayDays": 180,
+            "rewatchDelay": "180 days",
             "alwaysInclude": true
         }
     ]

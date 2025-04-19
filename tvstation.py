@@ -35,9 +35,9 @@ Setup:
 
 	Create a local_config.json file to customize rewatch delays and metadata. You can use the provided local_config-example.json as a starting point:
 	{
-		"defaultRewatchDelayDays": {
-			"movies": 180,
-			"tv": 90
+		"defaultRewatchDelay": {
+			"movies": "180 days",
+			"tv": "90 days"
 		},
 		"excluded_slugs": ["example-series-1", "example-series-2"],
 		"metadata": [
@@ -45,7 +45,7 @@ Setup:
 				"slug": "movie-title",
 				"title": "Movie Title",  # Optional: Alternative title to use for IMDB lookup
 				"year": 1980,
-				"rewatchDelayDays": 365
+				"rewatchDelay": "1 year"
 			}
 		],
 		"movie_series_slugs": ["star-wars", "john-wick", "indiana-jones"],
@@ -65,6 +65,7 @@ import json
 import glob
 from dotenv import load_dotenv
 import requests
+import re
 
 # Ensure logs directory exists
 logs_dir = path.join(path.dirname(path.abspath(__file__)), 'logs')
@@ -143,21 +144,65 @@ def log_cron_message(script_name, args=None):
 # Load environment variables from .env file
 load_dotenv()
 
+def parse_duration_to_days(duration):
+	"""
+	Parse a duration string or integer into days.
+	
+	Args:
+		duration: Either an integer representing days, or a string in the format "{number} {unit}"
+			where unit is one of: day, days, month, months, year, years
+			
+	Returns:
+		int: The number of days the duration represents
+	"""
+	if isinstance(duration, int):
+		return duration
+		
+	if not isinstance(duration, str):
+		log_message(f"Warning: Invalid duration format: {duration}. Using default of 1 year.")
+		return 365
+		
+	# Parse the duration string
+	match = re.match(r'^(\d+)\s+(day|days|month|months|year|years)$', duration.lower())
+	if not match:
+		log_message(f"Warning: Invalid duration format: {duration}. Using default of 1 year.")
+		return 365
+		
+	number = int(match.group(1))
+	unit = match.group(2)
+	
+	# Convert to days
+	if unit in ['day', 'days']:
+		return number
+	elif unit in ['month', 'months']:
+		return number * 30
+	elif unit in ['year', 'years']:
+		return number * 365
+		
+	return 365  # Default to 1 year if something goes wrong
+
 # Load missing metadata from JSON file
 try:
 	with open('local_config.json', 'r') as f:
 		LOCAL_CONFIG = json.load(f)
 except FileNotFoundError:
 	LOCAL_CONFIG = {
-		"defaultRewatchDelayDays": {
-			"movies": 180,
-			"tv": 90
+		"defaultRewatchDelay": {
+			"movies": "180 days",
+			"tv": "90 days"
 		},
 		"excluded_slugs": [],
 		"metadata": [],
 		"movie_series_slugs": [],
 		"restricted_play_months": {}
 	}
+
+# Convert default rewatch delays to days
+default_rewatch_delays = LOCAL_CONFIG.get('defaultRewatchDelay', {'movies': '180 days', 'tv': '90 days'})
+default_rewatch_delays_days = {
+	'movies': parse_duration_to_days(default_rewatch_delays['movies']),
+	'tv': parse_duration_to_days(default_rewatch_delays['tv'])
+}
 
 PLEX_GLOBALS = {
 	'playlist_name': getenv('playlist_name', 'My Favs TV'),
@@ -169,7 +214,7 @@ PLEX_GLOBALS = {
 	'excluded_slugs': LOCAL_CONFIG.get('excludedSlugs', []),
 	'omdb_api_key': getenv('omdb_api_key', ''),
 	'omdb_api_url': getenv('omdb_api_url', 'http://www.omdbapi.com/'),
-	'defaultRewatchDelayDays': LOCAL_CONFIG.get('defaultRewatchDelayDays', {'movies': 180, 'tv': 90}),
+	'defaultRewatchDelayDays': default_rewatch_delays_days,
 	'metadata': LOCAL_CONFIG.get('metadata', []),
 	'movie_series_slugs': LOCAL_CONFIG.get('movieSeriesSlugs', []),
 	'restricted_play_months': LOCAL_CONFIG.get('restrictedPlayMonths', {}),
@@ -437,9 +482,10 @@ def build_series_episodes(ssn):
 		# If all episodes are watched, mark them as unwatched
 		all_watched = first_unwatched_episode is None
 		if all_watched:
-			# Get the rewatch delay days from LOCAL_CONFIG
+			# Get the rewatch delay from LOCAL_CONFIG
 			series_config = next((item for item in PLEX_GLOBALS['metadata'] if item.get('slug') == series_slug), {})
-			rewatch_delay_days = series_config.get('rewatchDelayDays', PLEX_GLOBALS['defaultRewatchDelayDays']['tv'])
+			rewatch_delay = series_config.get('rewatchDelay', PLEX_GLOBALS['defaultRewatchDelayDays']['tv'])
+			rewatch_delay_days = parse_duration_to_days(rewatch_delay)
 			
 			if (time.time() - most_recent_viewed_at) >= (rewatch_delay_days * 24 * 60 * 60):  # Convert days to seconds
 				mark_as_unwatched(ssn, series_key)
@@ -616,7 +662,8 @@ def build_movie_list(ssn):
 			if movie.get('viewCount', 0) > 0:  # If movie is watched
 				movie_slug = movie.get('slug', create_slug(movie['title']))
 				movie_config = next((item for item in PLEX_GLOBALS['metadata'] if item.get('slug') == movie_slug), {})
-				rewatch_delay_days = movie_config.get('rewatchDelayDays', PLEX_GLOBALS['defaultRewatchDelayDays']['movies'])
+				rewatch_delay = movie_config.get('rewatchDelay', PLEX_GLOBALS['defaultRewatchDelayDays']['movies'])
+				rewatch_delay_days = parse_duration_to_days(rewatch_delay)
 				
 				last_viewed_at = movie.get('lastViewedAt', 0)
 				if last_viewed_at > 0 and (time.time() - last_viewed_at) >= (rewatch_delay_days * 24 * 60 * 60):
