@@ -364,6 +364,7 @@ def main():
 		f.write("# Missing TV Show Episodes and Movies\n\n")
 		f.write(markdown_table)
 		f.write("\n".join(summary_lines))
+		f.write(f"\n\n---\nLast updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 	
 	# Clean up old log files
 	cleanup_old_logs(logs_dir)
