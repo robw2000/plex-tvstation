@@ -121,9 +121,24 @@ def log_message(*args, **kwargs):
 	if not PLEX_GLOBALS.get('log_only', False):
 		print(*args, **kwargs)
 	
-	# Write to log file
+	# Write to dated log file
 	with open(log_file, 'a') as f:
 		f.write(f"[{timestamp}] {message}\n")
+
+def log_cron_message(script_name, args=None):
+	"""
+	Log a basic message to cron.log with script name and arguments.
+	This is used for cron job logging.
+	"""
+	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+	cron_log = path.join(logs_dir, 'cron.log')
+	
+	# Only include non-None arguments that were actually passed
+	args_str = ' '.join(f"{k}={v}" for k, v in args.items() if v is not None) if args else ''
+	message = f"[{timestamp}] Running {script_name} with args: {args_str}"
+	
+	with open(cron_log, 'a') as f:
+		f.write(f"{message}\n")
 
 # Load environment variables from .env file
 load_dotenv()
@@ -630,26 +645,38 @@ def replace_playlist_items(ssn):
 
 def rob_tv(ssn):
 	"""
-	Main function to orchestrate the playlist creation and update process.
+	Main function to update the playlist.
 	"""
-	# Load global variables
+	# Log cron message if in log-only mode
+	if PLEX_GLOBALS.get('log_only', False):
+		# Get the command line arguments that were actually passed
+		import sys
+		import argparse
+		parser = argparse.ArgumentParser()
+		parser.add_argument('-p','--PlaylistName', type=str)
+		parser.add_argument('-l', '--log-only', action='store_true')
+		args, _ = parser.parse_known_args()
+		# Convert to dict and filter out None values
+		args_dict = {k: v for k, v in vars(args).items() if v is not None}
+		log_cron_message('tvstation.py', args_dict)
+		return
+
+	# Initialize global variables
 	load_globals(ssn)
-
-	# Refresh the library to ensure any new content is included
-	refresh_tv_shows(ssn)
+	
+	# Get series and playlist information
+	get_series_globals()
+	get_playlist_globals()
+	
+	# Build the playlist
 	build_series_episodes(ssn)
-
-	# Build the list of movies and TV show episodes
-	refresh_movies(ssn)
 	build_movie_list(ssn)
-
-	# Build the list of playlist episodes/movies
 	build_playlist_episode_keys()
-
-	# Replace the playlist items with the new list
-	response = replace_playlist_items(ssn)
-
-	return response
+	
+	# Update the playlist
+	replace_playlist_items(ssn)
+	
+	log_message("Playlist updated successfully")
 
 def find_index(lst, predicate):
 	"""
@@ -719,17 +746,13 @@ if __name__ == '__main__':
 	# Set log-only mode if specified
 	PLEX_GLOBALS['log_only'] = args.log_only
 	
-	# If log-only mode is enabled, print a log entry to stdout
-	if args.log_only:
-		timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-		script_name = os.path.basename(__file__)
-		args_str = ' '.join([f"{k}={v}" for k, v in vars(args).items() if v is not None])
-		print(f"[{timestamp}] Running {script_name} with args: {args_str}")
-
 	#call function and process result
 	response = rob_tv(ssn=ssn)
-	if response.status_code != 200:
+	
+	# Only check response status if not in log-only mode
+	if not args.log_only and response and response.status_code != 200:
 		log_message("ERROR: Playlist could not be updated!")
 		parser.error(response)
 
-	log_message("Playlist updated successfully!")
+	if not args.log_only:
+		log_message("Playlist updated successfully!")

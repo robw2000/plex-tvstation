@@ -173,6 +173,9 @@ cython_debug/
 # Ruff stuff:
 .ruff_cache/
 
+# Cursor chat request files
+chat-request.md
+
 # PyPI configuration file
 .pypirc
 
