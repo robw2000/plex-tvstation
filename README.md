@@ -1,10 +1,13 @@
-# Plex Playlist Generator
+# Plex TV Station
 
 > **Note**: This documentation was written by Cursor AI and may contain mistakes or inaccuracies. Please verify any information before proceeding.
 
-This script automatically generates a playlist in Plex that includes all unwatched movies and TV shows, starting with the next unwatched episode of each series or movie. The playlist is rebuilt each time the script runs, ensuring it always reflects the current state of your library.
+This repository contains two main scripts:
 
-## Features
+1. **tvstation.py**: Automatically generates a playlist in Plex that includes all unwatched movies and TV shows, starting with the next unwatched episode of each series or movie.
+2. **media_library_analyzer.py**: Analyzes your local media library and compares it with online databases to identify missing episodes and movies.
+
+## tvstation.py Features
 
 - Creates a playlist with unwatched movies and TV shows
 - Starts with the next unwatched episode of each series
@@ -21,6 +24,15 @@ This script automatically generates a playlist in Plex that includes all unwatch
 - Comprehensive logging system that tracks all operations
 - Automatically marks watched content as unwatched when unwatched content falls below 33%
 
+## media_library_analyzer.py Features
+
+- Scans your local TV show and movie directories
+- Compares local content with OMDB database to identify missing episodes
+- Generates a detailed markdown report of missing content
+- Provides a summary of missing episodes and movies
+- Automatically cleans up old log files
+- Helps identify incomplete TV show seasons and missing movies
+
 ## Requirements
 
 - Python 3.x
@@ -28,6 +40,7 @@ This script automatically generates a playlist in Plex that includes all unwatch
 - Required Python packages (install using `pip install -r requirements.txt`):
   - requests
   - python-dotenv
+  - tabulate (for media_library_analyzer.py)
 
 ## Setup
 
@@ -57,6 +70,10 @@ playlist_name=My Favs TV     # Name of the playlist to create/update
 # OMDB API configuration (optional)
 omdb_api_key=                # Your OMDB API key (for fetching movie years)
 omdb_api_url=http://www.omdbapi.com/  # OMDB API URL
+
+# Media library paths (for media_library_analyzer.py)
+tv_shows_path=/mnt/g/plex/TV Shows  # Path to your TV shows directory
+movies_path=/mnt/g/plex/Movies      # Path to your movies directory
 ```
 
 #### Finding Your Plex API Token
@@ -111,6 +128,8 @@ Create a `local_config.json` file in the root directory to customize rewatch del
 
 ## Usage
 
+### tvstation.py
+
 Run the script:
 
 ```bash
@@ -130,7 +149,21 @@ The script will:
 4. Add unwatched episodes and movies in the configured order
 5. Log to both the console and a log file in the `logs` directory
 
-## How It Works
+### media_library_analyzer.py
+
+Run the script:
+
+```bash
+python media_library_analyzer.py
+```
+
+The script will:
+1. Scan your local TV show and movie directories
+2. Compare with OMDB database to identify missing episodes
+3. Generate a markdown report in the `logs` directory
+4. Clean up old log files
+
+## How tvstation.py Works
 
 1. The script connects to your Plex server using the provided credentials
 2. It scans both your Movies and TV Shows libraries
@@ -149,11 +182,27 @@ The script will:
 5. The playlist is updated with the new content order
 6. Messages are logged to both the console and a log file
 
+## How media_library_analyzer.py Works
+
+1. The script scans your local TV show and movie directories
+2. For TV Shows:
+   - Identifies all seasons and episodes in your local library
+   - Queries OMDB API to get information about each show
+   - Compares local episodes with OMDB data to identify missing episodes
+3. For Movies:
+   - Checks for empty folders or folders without MKV files
+4. Generates a detailed markdown report with:
+   - A table of all missing episodes and movies
+   - A summary section organized by show
+   - Information about missing seasons and individual episodes
+5. Cleans up old log files to prevent accumulation
+
 ## Logging
 
-The script maintains a comprehensive logging system:
+Both scripts maintain comprehensive logging systems:
 - Logs are stored in the `logs` directory
-- Each run creates a new log file named `tvstation.log`
+- tvstation.py creates a new log file named `tvstation.log` for each run
+- media_library_analyzer.py creates a markdown report named `missing_episodes.md`
 - Logs include timestamps for all operations
 - Both console output and file logging are synchronized
 - Logs track playlist creation, content marking, and any errors or warnings
@@ -166,4 +215,5 @@ The script maintains a comprehensive logging system:
 - Verify that the user ID has access to the required libraries
 - If the script is marking content as unwatched too frequently or not often enough, change the rewatch delay in `local_config.json`
 - Check the log files in the `logs` directory for detailed information about script execution
-- If seasonal content isn't appearing when expected, verify the month names in `restricted_play_months` are lowercase 
+- If seasonal content isn't appearing when expected, verify the month names in `restricted_play_months` are lowercase
+- For media_library_analyzer.py, ensure your TV show and movie paths are correctly set in the .env file 

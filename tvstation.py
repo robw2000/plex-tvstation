@@ -166,13 +166,14 @@ PLEX_GLOBALS = {
 	'plex_api_token': getenv('plex_api_token', ''),
 	'user_id': getenv('user_id', '1'),
 	'max_episodes': int(getenv('max_episodes', 50)),
-	'excluded_slugs': LOCAL_CONFIG.get('excluded_slugs', []),
+	'excluded_slugs': LOCAL_CONFIG.get('excludedSlugs', []),
 	'omdb_api_key': getenv('omdb_api_key', ''),
 	'omdb_api_url': getenv('omdb_api_url', 'http://www.omdbapi.com/'),
 	'defaultRewatchDelayDays': LOCAL_CONFIG.get('defaultRewatchDelayDays', {'movies': 180, 'tv': 90}),
 	'metadata': LOCAL_CONFIG.get('metadata', []),
-	'movie_series_slugs': LOCAL_CONFIG.get('movie_series_slugs', []),
-	'restricted_play_months': LOCAL_CONFIG.get('restricted_play_months', {}),
+	'movie_series_slugs': LOCAL_CONFIG.get('movieSeriesSlugs', []),
+	'restricted_play_months': LOCAL_CONFIG.get('restrictedPlayMonths', {}),
+	'tv_show_limit': LOCAL_CONFIG.get('tvShowLimit', 0),
 
 	'base_url': None,
 	'machine_id': None,
@@ -341,6 +342,30 @@ def get_movie_year_from_imdb(movie_title):
 	
 	return 0
 
+def create_episode_entry(episode_key, overall_index, last_viewed_at, view_count, episode, season_title, episode_title):
+	"""
+	Creates a standardized episode entry dictionary for the series_episodes list.
+	
+	Args:
+		episode_key: The rating key of the episode
+		overall_index: The overall index of the episode in the series
+		last_viewed_at: Timestamp when the episode was last viewed
+		view_count: Number of times the episode has been viewed
+		episode: The original episode object from Plex
+		
+	Returns:
+		dict: A dictionary containing the episode information
+	"""
+	return {
+		'ratingKey': episode_key,
+		'index': overall_index,
+		'type': 'tv',
+		'lastViewedAt': last_viewed_at,
+		'isWatched': view_count > 0,
+		'title': f'{season_title} Episode {str(episode["index"])} - {episode_title}',
+		'series_title': episode['grandparentTitle']
+	}
+
 def build_series_episodes(ssn):
 	"""
 	Builds the series episodes for the Plex server.
@@ -350,6 +375,13 @@ def build_series_episodes(ssn):
 	base_url = get_base_url()
 	_, tv_section_key = get_section_keys(ssn)
 	series_keys, series_seasons, series_episodes = get_series_globals()
+
+	# Validate tv_show_limit is a positive integer
+	tv_show_limit = PLEX_GLOBALS.get('tv_show_limit', 0)
+	if not isinstance(tv_show_limit, int) or tv_show_limit < 0:
+		log_message(f"Warning: tv_show_limit must be a positive integer. Current value: {tv_show_limit}. Treating as 0 (disabled).")
+		tv_show_limit = 0
+		PLEX_GLOBALS['tv_show_limit'] = 0
 
 	series_list = ssn.get(f'{base_url}/library/sections/{tv_section_key}/all', params={}).json()['MediaContainer']['Metadata']
 
@@ -367,39 +399,40 @@ def build_series_episodes(ssn):
 		# Track episode keys and whether they are watched or not
 		first_unwatched_episode = None
 		start_index = 0
-		overall_index = 0  # Changed from -1 to 0 to make it 1-indexed
+		episode_index = 0  # Changed from -1 to 0 to make it 1-indexed
 		most_recent_viewed_at = 0
 
 		for season in series_seasons[series_key]:
+			season_title = season['title']
 			season_key = season["ratingKey"]
 
 			episodes = ssn.get(f'{base_url}/library/metadata/{season_key}/children', params={}).json()['MediaContainer']['Metadata']
 			for episode in episodes:
-				overall_index += 1  # Increment first to make it 1-indexed
+				episode_index += 1  # Increment first to make it 1-indexed to represent the episode number
 				episode_key = episode['ratingKey']
+				episode_title = episode['title']
 				last_viewed_at = episode.get('lastViewedAt', 0)
 				view_count = episode.get('viewCount', 0)
-				episode['index'] = overall_index
+				episode['index'] = episode_index
 				
-				series_episodes[series_key].append({
-					'ratingKey': episode_key,
-					'index': overall_index,
-					'type': 'tv',
-					'lastViewedAt': last_viewed_at,
-					'isWatched': view_count > 0,
-					'title': f'{episode["parentTitle"]} Episode {str(episode["index"])} - {episode["title"]}',
-					'series_title': episode['grandparentTitle']
-				})
+				series_episodes[series_key].append(
+					create_episode_entry(episode_key, episode_index, last_viewed_at, view_count, episode, season_title, episode_title)
+				)
 				if first_unwatched_episode is None and view_count == 0:
 					first_unwatched_episode = episode
-					start_index = overall_index
-				else:
+					start_index = episode_index - 1  # Subtract 1 to make it 0-indexed to represent the episode number
+				elif first_unwatched_episode is None:
 					# Save the viewed time of the last watched episode before the first unwatched episode was found
+					# Don't consider watched episodes that are after the first unwatched episode
 					if last_viewed_at > most_recent_viewed_at:
 						most_recent_viewed_at = last_viewed_at
 
 		# Add the series keys with the most recent viewed at time
-		series_keys.append({'key': series_key, 'last_viewed_at': most_recent_viewed_at})
+		series_keys.append({
+			'key': series_key,
+			'last_viewed_at': most_recent_viewed_at,
+			'slug': series_slug
+		})
 
 		# If all episodes are watched, mark them as unwatched
 		all_watched = first_unwatched_episode is None
@@ -417,6 +450,79 @@ def build_series_episodes(ssn):
 
 		if start_index > 0 and series_episodes.get(series_key) is not None:
 			series_episodes[series_key] = series_episodes[series_key][start_index:]
+	
+	# Apply TV show limit if enabled
+	if tv_show_limit > 0:
+		# Create a list to store series with their percent_complete values
+		series_with_percent = []
+		
+		# Calculate percent_complete for each series
+		for series_key in series_episodes:
+			if series_key == 'movies':  # Skip the movies series
+				continue
+				
+			# Get the index of the first episode and the total number of episodes
+			if series_episodes[series_key]:
+				first_episode_index = series_episodes[series_key][0]['index']
+				last_episode_index = series_episodes[series_key][-1]['index']
+				
+				# Calculate percent_complete
+				percent_complete = (first_episode_index / last_episode_index * 100) if last_episode_index > 0 else 0
+				
+				# Get the series slug from series_keys
+				series_slug = None
+				for s in series_keys:
+					if s['key'] == series_key:
+						series_slug = s['slug']
+						break
+				
+				# Check if this series should always be included
+				always_include = False
+				if series_slug:
+					series_config = next((item for item in PLEX_GLOBALS['metadata'] if item.get('slug') == series_slug), {})
+					always_include_value = series_config.get('alwaysInclude', False)
+					
+					# Handle different types of alwaysInclude values
+					if isinstance(always_include_value, bool):
+						always_include = always_include_value
+					elif isinstance(always_include_value, int):
+						always_include = always_include_value == 1
+					else:
+						always_include = False
+				
+				# Add to the list with percent_complete and always_include flag
+				series_with_percent.append({
+					'key': series_key,
+					'percent_complete': percent_complete,
+					'always_include': always_include
+				})
+		
+		# Sort by percent_complete in descending order
+		series_with_percent.sort(key=lambda x: x['percent_complete'], reverse=True)
+		
+		# Separate always_include series from others
+		always_include_series = [s for s in series_with_percent if s['always_include']]
+		other_series = [s for s in series_with_percent if not s['always_include']]
+		
+		# Check if we have more always_include series than the limit
+		if len(always_include_series) > tv_show_limit:
+			log_message(f"Warning: There are {len(always_include_series)} TV shows marked as 'always include', which exceeds the TV show limit of {tv_show_limit}.")
+			log_message("All 'always include' shows will be included in the playlist. Consider increasing the tv_show_limit setting.")
+			
+			# Keep only the always_include series
+			series_to_keep = [s['key'] for s in always_include_series]
+		else:
+			# Calculate how many other series to keep
+			remaining_slots = tv_show_limit - len(always_include_series)
+			
+			# Keep always_include series plus the top remaining_slots from other_series
+			series_to_keep = [s['key'] for s in always_include_series] + [s['key'] for s in other_series[:remaining_slots]]
+		
+		# Remove series that are not in series_to_keep
+		series_to_remove = [key for key in series_episodes.keys() if key != 'movies' and key not in series_to_keep]
+		for key in series_to_remove:
+			del series_episodes[key]
+			PLEX_GLOBALS['series_keys'] = [obj for obj in PLEX_GLOBALS['series_keys'] if obj['key'] != key]
 
 def build_movie_list(ssn):
 	"""
@@ -561,7 +667,7 @@ def build_movie_list(ssn):
 			unwatched_movies[indexes[i]] = movies[i]['movie']
 
 	# Add movies to series_keys with last_viewed_at of 0
-	PLEX_GLOBALS['series_keys'].append({'key': 'movies', 'last_viewed_at': most_recent_viewed_at})
+	PLEX_GLOBALS['series_keys'].append({'key': 'movies', 'last_viewed_at': most_recent_viewed_at, 'slug': 'movies'})
 	series_episodes['movies'] = unwatched_movies
 
 def build_playlist_episode_keys():
@@ -596,7 +702,61 @@ def build_playlist_episode_keys():
 
 			episode = series_episodes[series_key][next_index]
 			log_message(f'{episode["series_title"]}: {episode["title"]}')
-
+	
+	# Report what series were included in the playlist
+	log_message('')
+	log_message('Series included in playlist:')
+	log_message('--------------------------')
+	
+	# Get unique series titles from the playlist with their percent complete and always include status
+	included_series = []
+	for series_key in series_episodes:
+		if series_episodes[series_key]:  # Only include series that have episodes
+			# Get the series title from the first episode
+			series_title = series_episodes[series_key][0]['series_title']
+			
+			# Calculate percent complete
+			first_episode_index = series_episodes[series_key][0]['index']
+			last_episode_index = series_episodes[series_key][-1]['index']
+			percent_complete = (first_episode_index / last_episode_index * 100) if last_episode_index > 0 else 0
+			
+			# Get the series slug from series_keys
+			series_slug = None
+			for s in series_keys:
+				if s['key'] == series_key:
+					series_slug = s['slug']
+					break
+			
+			# Check if this series should always be included
+			always_include = False
+			if series_slug:
+				series_config = next((item for item in PLEX_GLOBALS['metadata'] if item.get('slug') == series_slug), {})
+				always_include_value = series_config.get('alwaysInclude', False)
+				
+				# Handle different types of alwaysInclude values
+				if isinstance(always_include_value, bool):
+					always_include = always_include_value
+				elif isinstance(always_include_value, int):
+					always_include = always_include_value == 1
+				else:
+					always_include = False
+			
+			included_series.append({
+				'title': series_title,
+				'percent_complete': percent_complete,
+				'always_include': always_include
+			})
+	
+	# Sort the series titles alphabetically
+	sorted_series = sorted(included_series, key=lambda x: x['title'])
+	
+	# Log each series title with its percent complete and always include status
+	for series in sorted_series:
+		always_include_text = " (Always Included)" if series['always_include'] else ""
+		log_message(f'- {series["title"]} - {series["percent_complete"]:.1f}% complete{always_include_text}')
+	
+	# Log the total count
+	log_message(f'Total series included: {len(sorted_series)}')
 
 def get_playlist_episode(ssn):
 	"""
@@ -675,8 +835,6 @@ def rob_tv(ssn):
 	
 	# Update the playlist
 	replace_playlist_items(ssn)
-	
-	log_message("Playlist updated successfully")
 
 def find_index(lst, predicate):
 	"""

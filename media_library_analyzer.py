@@ -1,5 +1,41 @@
 #!/usr/bin/env python3
 
+"""
+Media Library Analyzer
+
+This script analyzes your local media library and compares it with online databases to identify missing episodes and movies.
+It scans your TV show and movie directories, compares the content with OMDB database information, and generates a detailed
+report of missing episodes and movies.
+
+Features:
+- Scans local TV show and movie directories
+- Compares local content with OMDB database to identify missing episodes
+- Generates a detailed markdown report of missing content
+- Provides a summary of missing episodes and movies
+- Automatically cleans up old log files
+- Helps identify incomplete TV show seasons and missing movies
+
+Requirements:
+- Python 3.x
+- Required Python packages:
+  - requests
+  - python-dotenv
+  - tabulate
+
+Setup:
+- Fill the variables in the .env file or set them as environment variables:
+  - tv_shows_path: Path to your TV shows directory
+  - movies_path: Path to your movies directory
+  - omdb_api_key: Your OMDB API key
+  - omdb_api_url: The OMDB API URL (defaults to http://www.omdbapi.com/)
+
+Usage:
+- Run the script: python media_library_analyzer.py
+- The script will generate a markdown report in the logs directory
+- The report will include a table of all missing episodes and movies
+- A summary section will be included with information about missing seasons and individual episodes
+"""
+
 import os
 import re
 from pathlib import Path
@@ -21,7 +57,18 @@ OMDB_API_KEY = os.getenv("omdb_api_key")
 OMDB_API_URL = os.getenv("omdb_api_url")
 
 def get_show_info(show_name: str) -> dict:
-	"""Get show information from OMDB API"""
+	"""
+	Get show information from OMDB API.
+	
+	This function queries the OMDB API to get detailed information about a TV show.
+	It first searches for the show to get the exact title, then retrieves the full show information.
+	
+	Args:
+		show_name: The name of the show to search for
+		
+	Returns:
+		A dictionary containing the show information from OMDB API
+	"""
 	# Strip years from show name (e.g., "Show Name 2006-2013" or "Show Name 2006-" -> "Show Name")
 	clean_show_name = re.sub(r'\s+\d{4}(-\d{4})?(-\s*)?$', '', show_name)
 	
@@ -56,7 +103,19 @@ def get_show_info(show_name: str) -> dict:
 	return response.json()
 
 def get_episode_info(show_name: str, season: int) -> dict:
-	"""Get episode information for a specific season from OMDB API"""
+	"""
+	Get episode information for a specific season from OMDB API.
+	
+	This function queries the OMDB API to get detailed information about all episodes
+	in a specific season of a TV show.
+	
+	Args:
+		show_name: The name of the show
+		season: The season number to get information for
+		
+	Returns:
+		A dictionary containing the episode information from OMDB API
+	"""
 	# Strip years from show name (e.g., "Show Name 2006-2013" or "Show Name 2006-" -> "Show Name")
 	clean_show_name = re.sub(r'\s+\d{4}(-\d{4})?(-\s*)?$', '', show_name)
 	
@@ -89,7 +148,16 @@ def get_episode_info(show_name: str, season: int) -> dict:
 	return response.json()
 
 def analyze_local_shows() -> Dict[str, Dict[int, Set[str]]]:
-	"""Analyze local TV show folders and return show/season/episode structure"""
+	"""
+	Analyze local TV show folders and return show/season/episode structure.
+	
+	This function scans the local TV show directory and builds a dictionary
+	representing the structure of shows, seasons, and episodes.
+	
+	Returns:
+		A dictionary with show names as keys and nested dictionaries as values.
+		The nested dictionaries have season numbers as keys and sets of episode filenames as values.
+	"""
 	local_shows = {}
 	
 	print(f"Looking for TV shows in: {TV_SHOWS_PATH}")
@@ -123,7 +191,19 @@ def analyze_local_shows() -> Dict[str, Dict[int, Set[str]]]:
 	return local_shows
 
 def analyze_show(show_name: str, local_data: Dict[int, Set[str]]) -> List[Tuple[str, str, str]]:
-	"""Compare local show data with OMDB data and return missing episodes"""
+	"""
+	Compare local show data with OMDB data and return missing episodes.
+	
+	This function compares the local TV show data with information from the OMDB API
+	to identify missing episodes and seasons.
+	
+	Args:
+		show_name: The name of the show to analyze
+		local_data: A dictionary with season numbers as keys and sets of episode filenames as values
+		
+	Returns:
+		A list of tuples containing (show_name, season, missing_item) for each missing episode or season
+	"""
 	missing_items = []
 	
 	# Get show info from OMDB
@@ -199,7 +279,15 @@ def analyze_show(show_name: str, local_data: Dict[int, Set[str]]) -> List[Tuple[
 	return missing_items
 
 def analyze_local_movies() -> List[Tuple[str, str, str]]:
-	"""Analyze local movie folders and return list of empty or invalid folders"""
+	"""
+	Analyze local movie folders and return list of empty or invalid folders.
+	
+	This function scans the local movie directory and identifies folders that are
+	empty or don't contain any MKV files.
+	
+	Returns:
+		A list of tuples containing (movie_name, "Movie", issue_description) for each problematic movie folder
+	"""
 	missing_items = []
 	
 	print(f"Looking for movies in: {MOVIES_PATH}")
@@ -229,7 +317,16 @@ def analyze_local_movies() -> List[Tuple[str, str, str]]:
 	return missing_items
 
 def cleanup_old_logs(logs_dir: Path, days_to_keep: int = 3):
-	"""Delete log files older than the specified number of days"""
+	"""
+	Delete log files older than the specified number of days.
+	
+	This function scans the logs directory and deletes any log files that are
+	older than the specified number of days.
+	
+	Args:
+		logs_dir: Path to the logs directory
+		days_to_keep: Number of days to keep log files for (default: 3)
+	"""
 	current_time = time.time()
 	cutoff_time = current_time - (days_to_keep * 24 * 60 * 60)  # Convert days to seconds
 	
@@ -244,6 +341,15 @@ def cleanup_old_logs(logs_dir: Path, days_to_keep: int = 3):
 			file_path.unlink()
 
 def main():
+	"""
+	Main function that orchestrates the media library analysis process.
+	
+	This function:
+	1. Analyzes local TV shows and compares with OMDB data
+	2. Analyzes local movies for empty or invalid folders
+	3. Generates a markdown report with missing episodes and movies
+	4. Cleans up old log files
+	"""
 	# Analyze local shows
 	print("Analyzing local TV shows...")
 	local_shows = analyze_local_shows()
