@@ -12,7 +12,6 @@ Features:
 - Compares local content with OMDB database to identify missing episodes
 - Generates a detailed markdown report of missing content
 - Provides a summary of missing episodes and movies
-- Automatically cleans up old log files
 - Helps identify incomplete TV show seasons and missing movies
 
 Requirements:
@@ -316,40 +315,32 @@ def analyze_local_movies() -> List[Tuple[str, str, str]]:
 			
 	return missing_items
 
-def cleanup_old_logs(logs_dir: Path, days_to_keep: int = 3):
+def log_cron_message(script_name, args=None):
 	"""
-	Delete log files older than the specified number of days.
-	
-	This function scans the logs directory and deletes any log files that are
-	older than the specified number of days.
-	
-	Args:
-		logs_dir: Path to the logs directory
-		days_to_keep: Number of days to keep log files for (default: 3)
+	Log a basic message to cron.log with script name and arguments.
+	This is used for cron job logging.
 	"""
-	current_time = time.time()
-	cutoff_time = current_time - (days_to_keep * 24 * 60 * 60)  # Convert days to seconds
+	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+	cron_log = Path("logs/cron.log")
 	
-	# Get all markdown files in the logs directory
-	log_files = glob.glob(str(logs_dir / "*.md"))
+	# Only include non-None arguments that were actually passed
+	args_str = ' '.join(f"{k}={v}" for k, v in args.items() if v is not None) if args else ''
+	message = f"[{timestamp}] Running {script_name} with args: {args_str}"
 	
-	for log_file in log_files:
-		file_path = Path(log_file)
-		# Check if the file is older than the cutoff time
-		if file_path.stat().st_mtime < cutoff_time:
-			print(f"Deleting old log file: {file_path}")
-			file_path.unlink()
+	with open(cron_log, 'a') as f:
+		f.write(f"{message}\n")
 
 def main():
 	"""
-	Main function that orchestrates the media library analysis process.
-	
-	This function:
-	1. Analyzes local TV shows and compares with OMDB data
-	2. Analyzes local movies for empty or invalid folders
-	3. Generates a markdown report with missing episodes and movies
-	4. Cleans up old log files
+	Main function that orchestrates the media library analysis.
 	"""
+	# Log script execution to cron.log
+	log_cron_message("media_library_analyzer.py")
+	
+	# Create logs directory if it doesn't exist
+	logs_dir = Path("logs")
+	logs_dir.mkdir(exist_ok=True)
+	
 	# Analyze local shows
 	print("Analyzing local TV shows...")
 	local_shows = analyze_local_shows()
@@ -458,10 +449,6 @@ def main():
 		summary_lines.append("\n### Missing Movies")
 		summary_lines.extend(shows_with_missing_movies)
 	
-	# Create logs directory if it doesn't exist
-	logs_dir = Path("logs")
-	logs_dir.mkdir(exist_ok=True)
-	
 	# Use a fixed filename that will be overwritten each time
 	output_file = logs_dir / "missing_episodes.md"
 	
@@ -472,9 +459,6 @@ def main():
 		f.write("\n".join(summary_lines))
 		f.write(f"\n\n---\nLast updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 	
-	# Clean up old log files
-	cleanup_old_logs(logs_dir)
-		
 	print(f"\nAnalysis complete! Results written to {output_file}")
 
 if __name__ == "__main__":

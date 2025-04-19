@@ -164,7 +164,19 @@ The script will:
 1. Scan your local TV show and movie directories
 2. Compare with OMDB database to identify missing episodes
 3. Generate a markdown report in the `logs` directory
-4. Clean up old log files
+
+### cleanup_logs.py
+
+Run the script:
+
+```bash
+python cleanup_logs.py
+```
+
+The script will:
+1. Delete log files older than 3 days from the `logs` directory
+2. Log its execution to `cron.log`
+3. Create the `logs` directory if it doesn't exist
 
 ## How tvstation.py Works
 

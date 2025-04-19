@@ -72,31 +72,6 @@ logs_dir = path.join(path.dirname(path.abspath(__file__)), 'logs')
 if not path.exists(logs_dir):
 	makedirs(logs_dir)
 
-def clean_old_logs():
-	"""
-	Deletes log files that are older than 3 days.
-	"""
-	current_time = time.time()
-	three_days_ago = current_time - (3 * 24 * 60 * 60)  # 3 days in seconds
-	
-	# Get all log files in the logs directory
-	log_files = glob.glob(path.join(logs_dir, '*.log'))
-	
-	for log_file in log_files:
-		# Get the file's modification time
-		file_time = os.path.getmtime(log_file)
-		
-		# If the file is older than 3 days, delete it
-		if file_time < three_days_ago:
-			try:
-				os.remove(log_file)
-				print(f"Deleted old log file: {log_file}")
-			except Exception as e:
-				print(f"Error deleting log file {log_file}: {e}")
-
-# Clean up old log files
-clean_old_logs()
-
 # Create log file with date prefix
 current_date = time.strftime('%Y-%m-%d')
 log_file = path.join(logs_dir, f'{current_date}-tvstation.log')
@@ -854,19 +829,17 @@ def rob_tv(ssn):
 	"""
 	Main function to update the playlist.
 	"""
-	# Log cron message if in log-only mode
-	if PLEX_GLOBALS.get('log_only', False):
-		# Get the command line arguments that were actually passed
-		import sys
-		import argparse
-		parser = argparse.ArgumentParser()
-		parser.add_argument('-p','--PlaylistName', type=str)
-		parser.add_argument('-l', '--log-only', action='store_true')
-		args, _ = parser.parse_known_args()
-		# Convert to dict and filter out None values
-		args_dict = {k: v for k, v in vars(args).items() if v is not None}
-		log_cron_message('tvstation.py', args_dict)
-		return
+	# Log cron message
+	# Get the command line arguments that were actually passed
+	import argparse
+	parser = argparse.ArgumentParser()
+	parser.add_argument('-p','--PlaylistName', type=str)
+	parser.add_argument('-l', '--log-only', action='store_true')
+	args, _ = parser.parse_known_args()
+	
+	# Convert to dict and filter out None values
+	args_dict = {k: v for k, v in vars(args).items() if v is not None}
+	log_cron_message('tvstation.py', args_dict)
 
 	# Initialize global variables
 	load_globals(ssn)
