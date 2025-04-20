@@ -466,7 +466,7 @@ def build_series_episodes(ssn):
 				mark_as_unwatched(ssn, series_key)
 			else:
 				# If all episodes are watched but the rewatch delay has not passed, remove the series from the playlist
-				PLEX_GLOBALS['series_keys'] = [obj for obj in PLEX_GLOBALS['series_keys'] if obj['key'] != series_key]
+				series_keys = [obj for obj in series_keys if obj['key'] != series_key]
 				del series_episodes[series_key]
 
 		if start_index > 0 and series_episodes.get(series_key) is not None:
@@ -540,10 +540,23 @@ def build_series_episodes(ssn):
 			series_to_keep = [s['key'] for s in always_include_series] + [s['key'] for s in other_series[:remaining_slots]]
 		
 		# Remove series that are not in series_to_keep
-		series_to_remove = [key for key in series_episodes.keys() if key != 'movies' and key not in series_to_keep]
-		for key in series_to_remove:
-			del series_episodes[key]
-			PLEX_GLOBALS['series_keys'] = [obj for obj in PLEX_GLOBALS['series_keys'] if obj['key'] != key]
+		series_keys = [obj for obj in series_keys if obj['key'] == 'movies' or obj['key'] in series_to_keep]
+
+		# Remove series episodes that are not in series_to_keep
+		for key in list(series_episodes.keys()):
+			if key != 'movies' and key not in series_to_keep:
+				del series_episodes[key]
+
+		# Verify that the series_episodes keys match the series_keys keys
+		# Check that the length of series_episodes is equal to the length of series_keys
+		# Verify that the series_keys are all in series_episodes	
+		if len(series_episodes.keys()) != len(series_keys) or not all(obj['key'] in series_episodes for obj in series_keys):
+			log_message(f"Warning: The series_episodes keys do not match the series_keys keys. Current value: {series_episodes.keys()}. Expected value: {series_keys}.")
+
+		# Update the series_keys and series_episodes in PLEX_GLOBALS
+		PLEX_GLOBALS['series_keys'] = series_keys
+		PLEX_GLOBALS['series_episodes'] = series_episodes
+
 
 def build_movie_list(ssn):
 	"""
@@ -558,7 +571,7 @@ def build_movie_list(ssn):
 	"""
 	base_url = get_base_url()
 	movie_section_key, _ = get_section_keys(ssn)
-	_, _, series_episodes = get_series_globals()
+	series_keys, _, series_episodes = get_series_globals()
 
 	# Get current month for restricted play check
 	current_month = time.strftime("%B").lower()
@@ -689,7 +702,7 @@ def build_movie_list(ssn):
 			unwatched_movies[indexes[i]] = movies[i]['movie']
 
 	# Add movies to series_keys with last_viewed_at of 0
-	PLEX_GLOBALS['series_keys'].append({'key': 'movies', 'last_viewed_at': most_recent_viewed_at, 'slug': 'movies'})
+	series_keys.append({'key': 'movies', 'last_viewed_at': most_recent_viewed_at, 'slug': 'movies'})
 	series_episodes['movies'] = unwatched_movies
 
 def build_playlist_episode_keys():
