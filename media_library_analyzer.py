@@ -45,15 +45,24 @@ from typing import Dict, List, Set, Tuple
 import datetime
 import glob
 import time
+import argparse
 
 # Load environment variables
 load_dotenv()
+
+# Global variables
+log_only = False
 
 # Constants
 TV_SHOWS_PATH = Path("/mnt/g/plex/TV Shows")
 MOVIES_PATH = Path("/mnt/g/plex/Movies")
 OMDB_API_KEY = os.getenv("omdb_api_key")
 OMDB_API_URL = os.getenv("omdb_api_url")
+
+# Get script directory for file operations
+SCRIPT_DIR = Path(__file__).parent.absolute()
+LOGS_DIR = SCRIPT_DIR / "logs"
+LOGS_DIR.mkdir(exist_ok=True)
 
 def get_show_info(show_name: str) -> dict:
 	"""
@@ -80,7 +89,7 @@ def get_show_info(show_name: str) -> dict:
 	search_response = requests.get(OMDB_API_URL, params=search_params)
 	search_results = search_response.json()
 	
-	print(f"Search results for '{clean_show_name}': {search_results.get('Response', 'Unknown')}")
+	print_message(f"Search results for '{clean_show_name}': {search_results.get('Response', 'Unknown')}")
 	
 	if search_results.get("Response") == "False" or "Error" in search_results:
 		return search_results
@@ -90,7 +99,7 @@ def get_show_info(show_name: str) -> dict:
 		
 	# Get the first result's exact title
 	exact_title = search_results["Search"][0]["Title"]
-	print(f"Found exact title: '{exact_title}'")
+	print_message(f"Found exact title: '{exact_title}'")
 	
 	# Now get the show info using the exact title
 	params = {
@@ -159,14 +168,14 @@ def analyze_local_shows() -> Dict[str, Dict[int, Set[str]]]:
 	"""
 	local_shows = {}
 	
-	print(f"Looking for TV shows in: {TV_SHOWS_PATH}")
+	print_message(f"Looking for TV shows in: {TV_SHOWS_PATH}")
 	
 	for show_path in TV_SHOWS_PATH.iterdir():
 		if not show_path.is_dir():
 			continue
 			
 		show_name = show_path.name
-		print(f"Found show: {show_name}")
+		print_message(f"Found show: {show_name}")
 		local_shows[show_name] = {}
 		
 		for season_path in show_path.iterdir():
@@ -185,7 +194,7 @@ def analyze_local_shows() -> Dict[str, Dict[int, Set[str]]]:
 				episodes.add(episode_file.stem)
 				
 			local_shows[show_name][season_num] = episodes
-			print(f"  Season {season_num}: {len(episodes)} episodes")
+			print_message(f"  Season {season_num}: {len(episodes)} episodes")
 			
 	return local_shows
 
@@ -207,7 +216,7 @@ def analyze_show(show_name: str, local_data: Dict[int, Set[str]]) -> List[Tuple[
 	
 	# Get show info from OMDB
 	show_info = get_show_info(show_name)
-	print(f"OMDB search for '{show_name}' returned: {show_info.get('Response', 'Unknown')}")
+	print_message(f"OMDB search for '{show_name}' returned: {show_info.get('Response', 'Unknown')}")
 	
 	if "Error" in show_info:
 		missing_items.append((show_name, "Error", f"Could not find show: {show_info['Error']}"))
@@ -218,7 +227,7 @@ def analyze_show(show_name: str, local_data: Dict[int, Set[str]]) -> List[Tuple[
 		return missing_items
 		
 	total_seasons = int(show_info.get("totalSeasons", 0))
-	print(f"  Total seasons according to OMDB: {total_seasons}")
+	print_message(f"  Total seasons according to OMDB: {total_seasons}")
 	
 	# Check for missing seasons
 	for season in range(1, total_seasons + 1):
@@ -228,7 +237,7 @@ def analyze_show(show_name: str, local_data: Dict[int, Set[str]]) -> List[Tuple[
 			
 		# Get episode info for this season
 		episode_info = get_episode_info(show_name, season)
-		print(f"  Season {season} info: {episode_info.get('Response', 'Unknown')}")
+		print_message(f"  Season {season} info: {episode_info.get('Response', 'Unknown')}")
 		
 		if "Error" in episode_info:
 			missing_items.append((show_name, f"Season {season:02d}", f"Could not get episode info: {episode_info['Error']}"))
@@ -240,8 +249,8 @@ def analyze_show(show_name: str, local_data: Dict[int, Set[str]]) -> List[Tuple[
 			
 		# Check for missing episodes
 		local_episodes = local_data[season]
-		print(f"  Local episodes in season {season}: {len(local_episodes)}")
-		print(f"  OMDB episodes in season {season}: {len(episode_info.get('Episodes', []))}")
+		print_message(f"  Local episodes in season {season}: {len(local_episodes)}")
+		print_message(f"  OMDB episodes in season {season}: {len(episode_info.get('Episodes', []))}")
 		
 		# Create a mapping of episode numbers to their filenames
 		local_episode_map = {}
@@ -289,14 +298,14 @@ def analyze_local_movies() -> List[Tuple[str, str, str]]:
 	"""
 	missing_items = []
 	
-	print(f"Looking for movies in: {MOVIES_PATH}")
+	print_message(f"Looking for movies in: {MOVIES_PATH}")
 	
 	for movie_path in MOVIES_PATH.iterdir():
 		if not movie_path.is_dir():
 			continue
 			
 		movie_name = movie_path.name
-		print(f"Found movie: {movie_name}")
+		print_message(f"Found movie: {movie_name}")
 		
 		# Check if folder is empty
 		if not any(movie_path.iterdir()):
@@ -315,13 +324,18 @@ def analyze_local_movies() -> List[Tuple[str, str, str]]:
 			
 	return missing_items
 
+def print_message(message):
+	if log_only:
+		return
+	print(message)
+
 def log_cron_message(script_name, args=None):
 	"""
 	Log a basic message to cron.log with script name and arguments.
 	This is used for cron job logging.
 	"""
 	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-	cron_log = Path("logs/cron.log")
+	cron_log = LOGS_DIR / "cron.log"
 	
 	# Only include non-None arguments that were actually passed
 	args_str = ' '.join(f"{k}={v}" for k, v in args.items() if v is not None) if args else ''
@@ -333,29 +347,38 @@ def log_cron_message(script_name, args=None):
 def main():
 	"""
 	Main function that orchestrates the media library analysis.
-	"""
-	# Log script execution to cron.log
-	log_cron_message("media_library_analyzer.py")
 	
-	# Create logs directory if it doesn't exist
-	logs_dir = Path("logs")
-	logs_dir.mkdir(exist_ok=True)
+	Arguments:
+		--log-only, -l: If specified, only log the script execution without performing analysis
+	"""
+	global log_only
+	
+	# Parse command line arguments
+	parser = argparse.ArgumentParser(description='Analyze media library for missing content')
+	parser.add_argument('-l', '--log-only', action='store_true')
+	args = parser.parse_args()
+	
+	# Set global log_only variable
+	log_only = args.log_only
+	
+	# Log script execution to cron.log
+	log_cron_message("media_library_analyzer.py", vars(args))
 	
 	# Analyze local shows
-	print("Analyzing local TV shows...")
+	print_message("Analyzing local TV shows...")
 	local_shows = analyze_local_shows()
 	
 	# Compare with OMDB data
-	print("Comparing with OMDB data...")
+	print_message("Comparing with OMDB data...")
 	all_missing_items = []
 	
 	for show_name, seasons in local_shows.items():
-		print(f"Analyzing {show_name}...")
+		print_message(f"Analyzing {show_name}...")
 		missing_items = analyze_show(show_name, seasons)
 		all_missing_items.extend(missing_items)
 		
 	# Analyze local movies
-	print("\nAnalyzing local movies...")
+	print_message("\nAnalyzing local movies...")
 	movie_missing_items = analyze_local_movies()
 	all_missing_items.extend(movie_missing_items)
 		
@@ -450,7 +473,7 @@ def main():
 		summary_lines.extend(shows_with_missing_movies)
 	
 	# Use a fixed filename that will be overwritten each time
-	output_file = logs_dir / "missing_episodes.md"
+	output_file = LOGS_DIR / "missing_episodes.md"
 	
 	# Write to file
 	with open(output_file, "w") as f:
@@ -459,7 +482,7 @@ def main():
 		f.write("\n".join(summary_lines))
 		f.write(f"\n\n---\nLast updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 	
-	print(f"\nAnalysis complete! Results written to {output_file}")
+	print_message(f"\nAnalysis complete! Results written to {output_file}")
 
 if __name__ == "__main__":
 	main() 

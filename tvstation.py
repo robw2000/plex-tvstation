@@ -158,7 +158,8 @@ def parse_duration_to_days(duration):
 
 # Load missing metadata from JSON file
 try:
-	with open('local_config.json', 'r') as f:
+	config_path = path.join(path.dirname(path.abspath(__file__)), 'local_config.json')
+	with open(config_path, 'r') as f:
 		LOCAL_CONFIG = json.load(f)
 except FileNotFoundError:
 	LOCAL_CONFIG = {
@@ -300,7 +301,7 @@ def refresh_movies(ssn):
 	base_url = get_base_url()
 	movie_section_key, _ = get_section_keys(ssn)
 
-	refresh_result = ssn.get(f'{base_url}/library/sections/{movie_section_key}/refresh?force=1')
+	refresh_result = ssn.get(f'{base_url}/library/sections/{movie_section_key}/refresh')
 	if refresh_result.status_code != 200:
 		log_message(f"Error refreshing movie shows: {refresh_result.status_code}")
 	else:
@@ -332,7 +333,7 @@ def create_slug(title):
 	Creates a slug from a title by converting to lowercase, replacing spaces with dashes,
 	and removing any characters that are not letters or dashes.
 	"""
-	slug = ''.join(c.lower() if c.isalpha() or c == ' ' else '' for c in title)
+	slug = ''.join(c.lower() if c.isalnum() or c == ' ' else '' for c in title)
 	return '-'.join(slug.split())
 
 def get_movie_year_from_imdb(movie_title):
@@ -404,6 +405,7 @@ def build_series_episodes(ssn):
 		PLEX_GLOBALS['tv_show_limit'] = 0
 
 	series_list = ssn.get(f'{base_url}/library/sections/{tv_section_key}/all', params={}).json()['MediaContainer']['Metadata']
+	series_list = sorted(series_list, key=lambda x: hashlib.md5(x['title'].encode()).hexdigest())
 
 	# Get all series and their seasons
 	for s in series_list:
@@ -481,7 +483,7 @@ def build_series_episodes(ssn):
 		for series_key in series_episodes:
 			if series_key == 'movies':  # Skip the movies series
 				continue
-				
+			
 			# Get the index of the first episode and the total number of episodes
 			if series_episodes[series_key]:
 				first_episode_index = series_episodes[series_key][0]['index']
@@ -549,7 +551,7 @@ def build_series_episodes(ssn):
 
 		# Verify that the series_episodes keys match the series_keys keys
 		# Check that the length of series_episodes is equal to the length of series_keys
-		# Verify that the series_keys are all in series_episodes	
+		# Verify that the series_keys and the series_episodes keys are the same
 		if len(series_episodes.keys()) != len(series_keys) or not all(obj['key'] in series_episodes for obj in series_keys):
 			log_message(f"Warning: The series_episodes keys do not match the series_keys keys. Current value: {series_episodes.keys()}. Expected value: {series_keys}.")
 
@@ -727,6 +729,11 @@ def build_playlist_episode_keys():
 	while len(playlist_episode_keys) < max_episodes:
 		for series_obj in series_keys:
 			series_key = series_obj['key']
+			# Skip if series doesn't exist in series_episodes
+			if series_key not in series_episodes:
+				log_message(f"Warning: Series {series_key} not found in series_episodes")
+				continue
+				
 			next_index = episode_indexes.get(series_key, episode_indexes.get(series_key, 0))
 			if next_index >= len(series_episodes[series_key]):
 				continue
