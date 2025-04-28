@@ -845,6 +845,28 @@ def replace_playlist_items(ssn):
 
 	return response
 
+def is_media_being_watched(ssn):
+	"""
+	Checks if any media is currently being watched on the Plex server.
+	
+	Args:
+		ssn: The requests session object with Plex authentication
+		
+	Returns:
+		bool: True if any media is being watched, False otherwise
+	"""
+	base_url = get_base_url()
+	try:
+		response = ssn.get(f'{base_url}/status/sessions')
+		if response.status_code == 200:
+			data = response.json()
+			# Check if there are any active sessions
+			return 'MediaContainer' in data and 'Metadata' in data['MediaContainer'] and len(data['MediaContainer']['Metadata']) > 0
+		return False
+	except Exception as e:
+		log_message(f"Error checking for active sessions: {e}")
+		return False
+
 def rob_tv(ssn):
 	"""
 	Main function to update the playlist.
@@ -861,6 +883,11 @@ def rob_tv(ssn):
 	args_dict = {k: v for k, v in vars(args).items() if v is not None}
 	log_cron_message('tvstation.py', args_dict)
 
+	# Check if any media is being watched
+	if is_media_being_watched(ssn):
+		log_message("Playlist update skipped - media is currently being watched")
+		return None
+
 	# Initialize global variables
 	load_globals(ssn)
 	
@@ -874,7 +901,7 @@ def rob_tv(ssn):
 	build_playlist_episode_keys()
 	
 	# Update the playlist
-	replace_playlist_items(ssn)
+	return replace_playlist_items(ssn)
 
 def find_index(lst, predicate):
 	"""
@@ -946,11 +973,12 @@ if __name__ == '__main__':
 	
 	#call function and process result
 	response = rob_tv(ssn=ssn)
-	
-	# Only check response status if not in log-only mode
-	if not args.log_only and response and response.status_code != 200:
+
+	# If the response is None, the playlist was not updated
+	if response is None:
+		log_message("Playlist not updated")
+	elif response.status_code != 200:
 		log_message("ERROR: Playlist could not be updated!")
 		parser.error(response)
-
-	if not args.log_only:
+	elif not args.log_only:
 		log_message("Playlist updated successfully!")
