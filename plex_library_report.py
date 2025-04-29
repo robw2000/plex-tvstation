@@ -26,6 +26,7 @@ if not path.exists(logs_dir):
 # Create log file with date prefix
 current_date = time.strftime('%Y-%m-%d')
 log_file = path.join(logs_dir, f'{current_date}-plex_library_report.log')
+markdown_file = path.join(logs_dir, 'library-media.md')
 
 def log_message(*args, **kwargs):
 	"""
@@ -44,6 +45,26 @@ def log_message(*args, **kwargs):
 	# Write to dated log file
 	with open(log_file, 'a') as f:
 		f.write(f"[{timestamp}] {message}\n")
+
+def write_markdown(*args, **kwargs):
+	"""
+	Write a message to the markdown file.
+	This function takes the same arguments as the print function.
+	"""
+	# Format the message
+	message = ' '.join(str(arg) for arg in args)
+	
+	# Write to markdown file
+	with open(markdown_file, 'a') as f:
+		f.write(f"{message}\n")
+
+def clear_markdown():
+	"""
+	Clear the markdown file and add the header.
+	"""
+	with open(markdown_file, 'w') as f:
+		f.write("# Plex Library Report\n\n")
+		f.write(f"Generated on: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
 # Load environment variables from .env file
 load_dotenv()
@@ -101,9 +122,6 @@ def get_movie_stats(ssn):
 	watched_movies = len([m for m in movie_list if m.get('viewCount', 0) > 0])
 	unwatched_movies = total_movies - watched_movies
 	
-	# Calculate total file size
-	total_size = sum(m.get('fileSize', 0) for m in movie_list)
-	
 	# Create a list of all movies with their details
 	movies_list = []
 	for movie in movie_list:
@@ -117,7 +135,6 @@ def get_movie_stats(ssn):
 		'total': total_movies,
 		'watched': watched_movies,
 		'unwatched': unwatched_movies,
-		'total_size': total_size,
 		'movies_list': sorted(movies_list, key=lambda x: (x['year'], x['title']))
 	}
 
@@ -185,39 +202,69 @@ def generate_report(ssn):
 	"""
 	Generates a comprehensive report of the Plex library.
 	"""
+	# Clear and initialize markdown file
+	clear_markdown()
+	
+	# Log and write to markdown
 	log_message("\n=== Plex Library Report ===")
-	log_message(f"Generated on: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
 	
 	# Get movie statistics
 	movie_stats = get_movie_stats(ssn)
 	log_message("=== Movies ===")
+	write_markdown("## Movies\n")
+	
 	log_message(f"Total Movies: {movie_stats['total']}")
+	write_markdown(f"- **Total Movies:** {movie_stats['total']}")
+	
 	log_message(f"Watched: {movie_stats['watched']} ({movie_stats['watched']/movie_stats['total']*100:.1f}%)")
-	log_message(f"Unwatched: {movie_stats['unwatched']} ({movie_stats['unwatched']/movie_stats['total']*100:.1f}%)")
-	log_message(f"Total Storage: {format_size(movie_stats['total_size'])}\n")
+	write_markdown(f"- **Watched:** {movie_stats['watched']} ({movie_stats['watched']/movie_stats['total']*100:.1f}%)")
+	
+	log_message(f"Unwatched: {movie_stats['unwatched']} ({movie_stats['unwatched']/movie_stats['total']*100:.1f}%)\n")
+	write_markdown(f"- **Unwatched:** {movie_stats['unwatched']} ({movie_stats['unwatched']/movie_stats['total']*100:.1f}%)\n")
 	
 	# Print detailed movie list
 	log_message("=== Movie List ===")
+	write_markdown("### Movie List\n")
+	
 	log_message("Title | Year | Watched")
 	log_message("----------------------------------------")
+	write_markdown("| Title | Year | Watched |")
+	write_markdown("|-------|------|---------|")
+	
 	for movie in movie_stats['movies_list']:
 		watched_status = "Yes" if movie['watched'] else "No"
 		log_message(f"{movie['title']} | {movie['year']} | {watched_status}")
+		write_markdown(f"| {movie['title']} | {movie['year']} | {watched_status} |")
 	
 	# Get TV show statistics
 	tv_stats = get_tv_stats(ssn)
 	log_message("\n=== TV Shows ===")
+	write_markdown("\n## TV Shows\n")
+	
 	log_message(f"Total Shows: {tv_stats['total_shows']}")
+	write_markdown(f"- **Total Shows:** {tv_stats['total_shows']}")
+	
 	log_message(f"Total Episodes: {tv_stats['total_episodes']}")
+	write_markdown(f"- **Total Episodes:** {tv_stats['total_episodes']}")
+	
 	log_message(f"Watched Episodes: {tv_stats['watched_episodes']} ({tv_stats['watched_episodes']/tv_stats['total_episodes']*100:.1f}%)")
+	write_markdown(f"- **Watched Episodes:** {tv_stats['watched_episodes']} ({tv_stats['watched_episodes']/tv_stats['total_episodes']*100:.1f}%)")
+	
 	log_message(f"Unwatched Episodes: {tv_stats['unwatched_episodes']} ({tv_stats['unwatched_episodes']/tv_stats['total_episodes']*100:.1f}%)\n")
+	write_markdown(f"- **Unwatched Episodes:** {tv_stats['unwatched_episodes']} ({tv_stats['unwatched_episodes']/tv_stats['total_episodes']*100:.1f}%)\n")
 	
 	# Print detailed TV show stats
 	log_message("=== TV Show Details ===")
+	write_markdown("### TV Show Details\n")
+	
 	log_message("Title | Episodes | Watched | % Watched")
 	log_message("----------------------------------------")
+	write_markdown("| Title | Episodes | Watched | % Watched |")
+	write_markdown("|-------|----------|---------|-----------|")
+	
 	for show in sorted(tv_stats['shows_stats'], key=lambda x: x['title']):
 		log_message(f"{show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}%")
+		write_markdown(f"| {show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}% |")
 
 if __name__ == '__main__':
 	import argparse
