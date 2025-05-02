@@ -328,6 +328,12 @@ def mark_as_unwatched(ssn, media_key):
 	base_url = get_base_url()
 	ssn.get(f'{base_url}/:/unscrobble?identifier=com.plexapp.plugins.library&key={media_key}')
 
+def is_partially_watched(episode):
+	"""
+	Checks if an episode is partially watched.
+	"""
+	return not episode['isWatched'] and episode.get('lastViewedAt', 0) > 0
+
 def create_slug(title):
 	"""
 	Creates a slug from a title by converting to lowercase, replacing spaces with dashes,
@@ -713,6 +719,7 @@ def build_playlist_episode_keys():
 	Retrieves all series and their episodes from the Plex server and builds a list of episode keys for the playlist.
 	An episode is selected from each series and added to the playlist, alternating between series.
 	This results in a playlist that rotates between all series, with each series being watched in order, starting with the most recently watched episode.
+	If there is a partially watched episode or movie, it will be the first item in the playlist.
 	"""
 	series_keys, _, series_episodes = get_series_globals()
 	_, _, playlist_episode_keys, max_episodes = get_playlist_globals()
@@ -720,31 +727,6 @@ def build_playlist_episode_keys():
 	# Sort the series keys by last_viewed_at (most recent viewed last)
 	series_keys = sorted(series_keys, key=lambda x: x['last_viewed_at'], reverse=False)
 
-	# Build the playlist episode keys
-	log_message('')
-	log_message('Playlist episodes')
-	log_message('--------------------------')
-
-	episode_indexes = {}
-	while len(playlist_episode_keys) < max_episodes:
-		for series_obj in series_keys:
-			series_key = series_obj['key']
-			# Skip if series doesn't exist in series_episodes
-			if series_key not in series_episodes:
-				log_message(f"Warning: Series {series_key} not found in series_episodes")
-				continue
-				
-			next_index = episode_indexes.get(series_key, episode_indexes.get(series_key, 0))
-			if next_index >= len(series_episodes[series_key]):
-				continue
-
-			ekey = series_episodes[series_key][next_index]['ratingKey']
-			playlist_episode_keys.append(ekey)
-			episode_indexes[series_key] = (next_index + 1) % len(series_episodes[series_key])
-
-			episode = series_episodes[series_key][next_index]
-			log_message(f'{episode["series_title"]}: {episode["title"]}')
-	
 	# Report what series were included in the playlist
 	log_message('')
 	log_message('Series included in playlist:')
@@ -784,19 +766,55 @@ def build_playlist_episode_keys():
 					always_include = False
 			
 			included_series.append({
+				'key': series_key,
 				'title': series_title,
 				'percent_complete': percent_complete,
 				'always_include': always_include
 			})
 	
-	# Sort the series titles alphabetically
-	sorted_series = sorted(included_series, key=lambda x: x['title'])
-	
+	# Sort the series by hash of the title
+	sorted_series = sorted(included_series, key=lambda x: hashlib.md5(x['title'].encode()).hexdigest())
+
+	# Reorder to start with the first partially watched item
+	for i, series in enumerate(sorted_series):
+		this_series_episodes= series_episodes.get(series['key'], [])
+		if this_series_episodes is not None and is_partially_watched(this_series_episodes[0]):
+			sorted_series = sorted_series[i:] + sorted_series[:i]
+			break
+			
 	# Log each series title with its percent complete and always include status
 	for series in sorted_series:
 		always_include_text = " (Always Included)" if series['always_include'] else ""
 		log_message(f'- {series["title"]} - {series["percent_complete"]:.1f}% complete{always_include_text}')
 	
+	# Build the playlist episode keys
+	log_message('')
+	log_message('Playlist episodes')
+	log_message('--------------------------')
+
+	episode_indexes = {}
+	while len(playlist_episode_keys) < max_episodes:
+		for series_obj in sorted_series:
+			series_key = series_obj['key']
+			
+			# Skip if series doesn't exist in series_episodes
+			if series_key not in series_episodes:
+				log_message(f"Warning: Series {series_key} not found in series_episodes")
+				continue
+			
+			next_index = episode_indexes.get(series_key, episode_indexes.get(series_key, 0))
+			if next_index >= len(series_episodes[series_key]):
+				continue
+
+			ekey = series_episodes[series_key][next_index]['ratingKey']
+			playlist_episode_keys.append(ekey)
+			episode_indexes[series_key] = (next_index + 1) % len(series_episodes[series_key])
+
+			episode = series_episodes[series_key][next_index]
+			log_message(f'{episode["series_title"]}: {episode["title"]}')
+	
+	PLEX_GLOBALS['playlist_episode_keys'] = playlist_episode_keys
+
 	# Log the total count
 	log_message(f'Total series included: {len(sorted_series)}')
 
