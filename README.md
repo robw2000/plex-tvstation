@@ -1,234 +1,70 @@
 # Plex TV Station
 
-> **Note**: This documentation was written by Cursor AI and may contain mistakes or inaccuracies. Please verify any information before proceeding.
+This project provides a set of scripts to manage and analyze your Plex media library. The main script, `src/main.py`, can perform various actions based on the arguments provided. These actions can be conveniently executed using the provided shell scripts.
 
-This repository contains two main scripts:
-
-1. **tvstation.py**: Automatically generates a playlist in Plex that includes all unwatched movies and TV shows, starting with the next unwatched episode of each series or movie.
-2. **media_library_analyzer.py**: Analyzes your local media library and compares it with online databases to identify missing episodes and movies.
-
-## tvstation.py Features
-
-- Creates a playlist with unwatched movies and TV shows
-- Starts with the next unwatched episode of each series
-- Alternates between series when adding episodes to the playlist
-- Automatically excludes series when all episodes are watched (for the configured rewatch delay period)
-- Handles movies as a special "series" type
-- Maintains consistent ordering using internal Plex rating keys
-- Supports metadata overrides for movies with missing information
-- Automatically fetches missing movie years from OMDB API
-- Configurable rewatch delay for both movies and TV shows
-- Automatically marks content as unwatched after the rewatch delay period
-- Groups movies by series (e.g., Star Wars, John Wick) to maintain chronological order
-- Supports seasonal content restrictions (e.g., Christmas movies only in December)
-- Comprehensive logging system that tracks all operations
-- Automatically marks watched content as unwatched when unwatched content falls below 33%
-
-## media_library_analyzer.py Features
-
-- Scans your local TV show and movie directories
-- Compares local content with OMDB database to identify missing episodes
-- Generates a detailed markdown report of missing content
-- Provides a summary of missing episodes and movies
-- Automatically cleans up old log files
-- Helps identify incomplete TV show seasons and missing movies
-
-## Requirements
+## Prerequisites
 
 - Python 3.x
-- Plex Media Server
-- Required Python packages (install using `pip install -r requirements.txt`):
-  - requests
-  - python-dotenv
-  - tabulate (for media_library_analyzer.py)
-
-## Setup
-
-1. Clone this repository
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Copy `.env.example` to `.env` and configure your environment variables
-4. (Optional) Copy `local_config-example.json` to `local_config.json` and customize for your needs
-
-## Configuration
-
-### Environment Variables
-
-Create a `.env` file in the root directory with the following variables:
-
-```env
-# Plex server configuration
-plex_ip=192.168.1.196        # Your Plex server IP address
-plex_port=32400              # Plex server port (default: 32400)
-plex_api_token=              # Your Plex API token
-user_id=1                    # Plex user ID (default: 1)
-max_episodes=50              # Maximum number of episodes in playlist
-playlist_name=My Favs TV     # Name of the playlist to create/update
-
-# OMDB API configuration (optional)
-omdb_api_key=                # Your OMDB API key (for fetching movie years)
-omdb_api_url=http://www.omdbapi.com/  # OMDB API URL
-
-# Media library paths (for media_library_analyzer.py)
-tv_shows_path=/mnt/g/plex/TV Shows  # Path to your TV shows directory
-movies_path=/mnt/g/plex/Movies      # Path to your movies directory
-```
-
-#### Finding Your Plex API Token
-
-1. Open the Plex web interface
-2. Open your browser's developer tools (F12)
-3. Look for the `X-Plex-Token` query parameter in any Plex request
-4. Copy the token value to your `.env` file
-
-### Local Configuration
-
-Create a `local_config.json` file in the root directory to customize rewatch delays and metadata. You can use the provided `local_config-example.json` as a starting point:
-
-```json
-{
-    "defaultRewatchDelay": {
-        "movies": "180 days",
-        "tv": "90 days"
-    },
-    "excluded_slugs": ["example-series-1", "example-series-2"],
-    "metadata": [
-        {
-            "slug": "movie-title",
-            "title": "Movie Title",  # Optional: Alternative title to use for IMDB lookup
-            "year": 1980,
-            "rewatchDelay": "1 year"
-        }
-    ],
-    "movie_series_slugs": ["star-wars", "john-wick", "indiana-jones"],
-    "restricted_play_months": {
-        "december": ["christmas", "santa", "elf"],
-        "october": ["halloween", "ghost", "vampire"]
-    }
-}
-```
-
-- `defaultRewatchDelay`: Default duration before content is marked as unwatched
-  - `movies`: Duration for movies (default: "180 days")
-  - `tv`: Duration for TV shows (default: "90 days")
-  - Values can be specified as integers (for backward compatibility) or strings in the format "{number} {unit}" where unit is one of: day, days, month, months, year, years
-  - Examples: "7 days", "1 month", "1 year", "3 years"
-  - If an invalid format is provided, it will default to "1 year"
-- `excluded_slugs`: Array of slugs to exclude from the playlist
-- `metadata`: Array of metadata overrides
-  - `slug`: The Plex slug for the content
-  - `title`: (Optional) Alternative title to use for IMDB lookup if the Plex title doesn't match
-  - `year`: The correct release year
-  - `rewatchDelay`: Custom rewatch delay for this specific content (same format as defaultRewatchDelay)
-- `movie_series_slugs`: Array of movie series slugs to group together chronologically
-- `restricted_play_months`: Dictionary mapping months to movie slugs that should only play during that month
-  - Keys are month names in lowercase (e.g., "december", "october")
-  - Values are arrays of movie slugs that should only play during that month
-  - Movies with matching slugs will be excluded from the playlist unless it's currently that month
-  - This only affects movies, not TV shows
+- Necessary Python packages (if any, specify here)
 
 ## Usage
 
-### tvstation.py
+The main script `src/main.py` supports the following actions:
 
-Run the script:
+1. **tvstation**
+   - Description: Runs the TV station functionality, which manages the scheduling and streaming of TV content from your Plex library. This action ensures that your TV station is up-to-date with the latest media and schedules.
+   - Usage: `./tv.sh [-l]`
+   - Options:
+     - `-l`, `--log-only`: Only write to log files, do not print to stdout.
 
-```bash
-python tvstation.py
-```
+2. **analyze**
+   - Description: Analyzes the media library to provide insights and statistics about your media collection. This includes identifying duplicates, missing metadata, and other anomalies that might affect your Plex experience.
+   - Usage: `./analyze.sh [-l]`
+   - Options:
+     - `-l`, `--log-only`: Only write to log files, do not print to stdout.
 
-Or specify a custom playlist name:
+3. **folders**
+   - Description: Creates necessary Plex folders to organize your media files efficiently. This action helps in maintaining a structured directory layout that Plex can easily index and manage.
+   - Usage: `./folders.sh [-l]`
+   - Options:
+     - `-l`, `--log-only`: Only write to log files, do not print to stdout.
 
-```bash
-python tvstation.py -p "My Custom Playlist"
-```
+4. **clean-logs**
+   - Description: Cleans up log files generated by the application to free up space and improve performance. This action removes old and unnecessary log files, keeping only the most recent and relevant logs.
+   - Usage: `./clean.sh [-l]`
+   - Options:
+     - `-l`, `--log-only`: Only write to log files, do not print to stdout.
 
-The script will:
-1. Connect to your Plex server
-2. Scan your library for unwatched content
-3. Create or update the specified playlist
-4. Add unwatched episodes and movies in the configured order
-5. Log to both the console and a log file in the `logs` directory
+5. **report**
+   - Description: Generates a comprehensive report of your Plex library, detailing the current state of your media collection, including media types, sizes, and other relevant statistics.
+   - Usage: `./report.sh [-l]`
+   - Options:
+     - `-l`, `--log-only`: Only write to log files, do not print to stdout.
 
-### media_library_analyzer.py
+## Configuration and Additional Files
 
-Run the script:
+The application uses several additional files for configuration and managing media preferences:
 
-```bash
-python media_library_analyzer.py
-```
+- **local_config.json**
+  - Description: This file contains local configuration settings for the application. It is used to customize the behavior of the scripts, such as specifying paths, user preferences, and other settings that need to be adjusted for the local environment.
+  - Fields:
+    - **tvShowLimit**: Specifies the maximum number of TV shows to be considered or processed at a time. Default is 8.
+    - **defaultRewatchDelay**: Defines the default delay period before a movie or TV show can be rewatched.
+      - **movies**: The delay for movies, set to "180 days".
+      - **tv**: The delay for TV shows, set to "90 days".
+    - **excludedSlugs**: A list of slugs (unique identifiers for media content) that should be excluded from processing.
+    - **movieSeriesSlugs**: A list of slugs representing movie series that are grouped together.
+    - **restrictedPlayMonths**: Specifies certain months during which specific themes or categories of media are restricted.
+    - **metadata**: An array of objects, each containing metadata for specific TV shows.
+      - **slug**: The unique identifier for the TV show.
+      - **rewatchDelay**: The specific rewatch delay for the show, overriding the default if necessary.
+      - **alwaysInclude**: A boolean indicating whether the show should always be included in processing, regardless of other settings.
 
-The script will:
-1. Scan your local TV show and movie directories
-2. Compare with OMDB database to identify missing episodes
-3. Generate a markdown report in the `logs` directory
+- **movie_wishlist.txt**
+  - Description: A text file that lists movies you wish to add to your Plex library. Each line in the file represents a movie title that the application will track or notify you about when it becomes available.
 
-### cleanup_logs.py
+- **tv_wishlist.txt**
+  - Description: Similar to `movie_wishlist.txt`, this file contains a list of TV shows you are interested in. The application uses this list to monitor and manage TV show availability and additions to your library.
 
-Run the script:
+Ensure these files are correctly configured and placed in the appropriate directory for the application to function as expected.
 
-```bash
-python cleanup_logs.py
-```
-
-The script will:
-1. Delete log files older than 3 days from the `logs` directory
-2. Log its execution to `cron.log`
-3. Create the `logs` directory if it doesn't exist
-
-## How tvstation.py Works
-
-1. The script connects to your Plex server using the provided credentials
-2. It scans both your Movies and TV Shows libraries
-3. For TV Shows:
-   - Identifies the next unwatched episode for each series
-   - Alternates between series when building the playlist
-   - Excludes series where all episodes are watched (for the configured rewatch delay period)
-   - Automatically marks all episodes as unwatched after the rewatch delay period
-4. For Movies:
-   - Treats all movies as a single "series"
-   - Adds unwatched movies to the playlist
-   - Groups movies by series to maintain chronological order
-   - If at least two-thirds of movies are marked as watched, watched movies will be marked as unwatched after the rewatch delay period
-   - Uses OMDB API to fetch missing movie years
-   - Applies seasonal restrictions based on the current month
-5. The playlist is updated with the new content order
-6. Messages are logged to both the console and a log file
-
-## How media_library_analyzer.py Works
-
-1. The script scans your local TV show and movie directories
-2. For TV Shows:
-   - Identifies all seasons and episodes in your local library
-   - Queries OMDB API to get information about each show
-   - Compares local episodes with OMDB data to identify missing episodes
-3. For Movies:
-   - Checks for empty folders or folders without MKV files
-4. Generates a detailed markdown report with:
-   - A table of all missing episodes and movies
-   - A summary section organized by show
-   - Information about missing seasons and individual episodes
-5. Cleans up old log files to prevent accumulation
-
-## Logging
-
-Both scripts maintain comprehensive logging systems:
-- Logs are stored in the `logs` directory
-- tvstation.py creates a new log file named `tvstation.log` for each run
-- media_library_analyzer.py creates a markdown report named `missing_episodes.md`
-- Logs include timestamps for all operations
-- Both console output and file logging are synchronized
-- Logs track playlist creation, content marking, and any errors or warnings
-
-## Troubleshooting
-
-- If you see "Warning: Could not determine year for movie" messages, add the movie to `local_config.json` or provide an OMDB API key
-- Ensure your Plex API token is correct and has the necessary permissions
-- Check that your Plex server is accessible at the configured IP and port
-- Verify that the user ID has access to the required libraries
-- If the script is marking content as unwatched too frequently or not often enough, change the rewatch delay in `local_config.json`
-- Check the log files in the `logs` directory for detailed information about script execution
-- If seasonal content isn't appearing when expected, verify the month names in `restricted_play_months` are lowercase
-- For media_library_analyzer.py, ensure your TV show and movie paths are correctly set in the .env file 
