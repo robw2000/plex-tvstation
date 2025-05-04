@@ -15,10 +15,9 @@ import re
 import time
 from dotenv import load_dotenv
 import requests
-import argparse
 
 # Ensure logs directory exists
-logs_dir = path.join(path.dirname(path.abspath(__file__)), 'logs')
+logs_dir = path.join(path.dirname(path.abspath(__file__)), '../logs')
 if not path.exists(logs_dir):
 	makedirs(logs_dir)
 
@@ -269,7 +268,11 @@ def generate_report(ssn):
 		log_message(f"{show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}%")
 		write_markdown(f"| {show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}% |")
 
-def run_plex_report():
+def run_plex_report(file_location):
+	# Adjust paths to use file_location
+	logs_dir = file_location / 'logs'
+	logs_dir.mkdir(exist_ok=True)
+
 	# Setup session
 	ssn = requests.Session()
 	ssn.headers.update({'Accept': 'application/json'})

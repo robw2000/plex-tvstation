@@ -68,57 +68,13 @@ import requests
 import re
 import requests
 
-# Ensure logs directory exists
-logs_dir = path.join(path.dirname(path.abspath(__file__)), '../logs')
-if not path.exists(logs_dir):
-	makedirs(logs_dir)
-
-# Create log file with date prefix
-current_date = time.strftime('%Y-%m-%d')
-log_file = path.join(logs_dir, f'{current_date}-tvstation.log')
-if path.exists(log_file):
-	os.remove(log_file)
-
-# Clear the log file
-with open(log_file, 'w') as f:
-	f.write(f"Log file created at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-
-def log_message(*args, **kwargs):
-	"""
-	Log a message to both the log file and stdout.
-	This function takes the same arguments as the print function.
-	"""
-	# Get the current timestamp
-	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-	
-	# Format the message
-	message = ' '.join(str(arg) for arg in args)
-	
-	# Print to stdout only if not in log-only mode
-	if not PLEX_GLOBALS.get('log_only', False):
-		print(*args, **kwargs)
-	
-	# Write to dated log file
-	with open(log_file, 'a') as f:
-		f.write(f"[{timestamp}] {message}\n")
-
-def log_cron_message(script_name, args=None):
-	"""
-	Log a basic message to cron.log with script name and arguments.
-	This is used for cron job logging.
-	"""
-	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-	cron_log = path.join(logs_dir, 'cron.log')
-	
-	# Only include non-None arguments that were actually passed
-	args_str = ' '.join(f"{k}={v}" for k, v in args.items() if v is not None) if args else ''
-	message = f"[{timestamp}] Running {script_name} with args: {args_str}"
-	
-	with open(cron_log, 'a') as f:
-		f.write(f"{message}\n")
-
 # Load environment variables from .env file
 load_dotenv()
+
+# Global variables
+log_file = None
+local_config_file = None
+PLEX_GLOBALS = {}
 
 def parse_duration_to_days(duration):
 	"""
@@ -157,58 +113,101 @@ def parse_duration_to_days(duration):
 		
 	return 365  # Default to 1 year if something goes wrong
 
-# Load missing metadata from JSON file
-try:
-	config_path = path.join(path.dirname(path.abspath(__file__)), 'local_config.json')
-	with open(config_path, 'r') as f:
-		LOCAL_CONFIG = json.load(f)
-except FileNotFoundError:
-	LOCAL_CONFIG = {
-		"defaultRewatchDelay": {
-			"movies": "180 days",
-			"tv": "90 days"
-		},
-		"excluded_slugs": [],
-		"metadata": [],
-		"movie_series_slugs": [],
-		"restricted_play_months": {}
+def set_plex_globals(local_config_file, log_dir, log_file, log_only):
+	"""
+	Set the PLEX_GLOBALS dictionary with values from the local_config.json file.
+	"""
+	global PLEX_GLOBALS
+	
+	# Load missing metadata from JSON file
+	try:
+		with open(local_config_file, 'r') as f:
+			LOCAL_CONFIG = json.load(f)
+	except FileNotFoundError:
+		LOCAL_CONFIG = {
+			"defaultRewatchDelay": {
+				"movies": "180 days",
+				"tv": "90 days"
+			},
+			"excluded_slugs": [],
+			"metadata": [],
+			"movie_series_slugs": [],
+			"restricted_play_months": {}
+		}
+
+	# Convert default rewatch delays to days
+	default_rewatch_delays = LOCAL_CONFIG.get('defaultRewatchDelay', {'movies': '180 days', 'tv': '90 days'})
+	default_rewatch_delays_days = {
+		'movies': parse_duration_to_days(default_rewatch_delays['movies']),
+		'tv': parse_duration_to_days(default_rewatch_delays['tv'])
 	}
 
-# Convert default rewatch delays to days
-default_rewatch_delays = LOCAL_CONFIG.get('defaultRewatchDelay', {'movies': '180 days', 'tv': '90 days'})
-default_rewatch_delays_days = {
-	'movies': parse_duration_to_days(default_rewatch_delays['movies']),
-	'tv': parse_duration_to_days(default_rewatch_delays['tv'])
-}
+	PLEX_GLOBALS = {
+		'log_only': log_only,
+		'log_dir': log_dir,
+		'log_file': log_file,
+		'local_config_file': local_config_file,
+		'playlist_name': getenv('playlist_name', 'My Favs TV'),
+		'plex_ip': getenv('plex_ip', '192.168.1.196'),
+		'plex_port': getenv('plex_port', '32400'),
+		'plex_api_token': getenv('plex_api_token', ''),
+		'user_id': getenv('user_id', '1'),
+		'max_episodes': int(getenv('max_episodes', 50)),
+		'excluded_slugs': LOCAL_CONFIG.get('excludedSlugs', []),
+		'omdb_api_key': getenv('omdb_api_key', ''),
+		'omdb_api_url': getenv('omdb_api_url', 'http://www.omdbapi.com/'),
+		'defaultRewatchDelayDays': default_rewatch_delays_days,
+		'metadata': LOCAL_CONFIG.get('metadata', []),
+		'movie_series_slugs': LOCAL_CONFIG.get('movieSeriesSlugs', []),
+		'restricted_play_months': LOCAL_CONFIG.get('restrictedPlayMonths', {}),
+		'tv_show_limit': LOCAL_CONFIG.get('tvShowLimit', 0),
 
-PLEX_GLOBALS = {
-	'playlist_name': getenv('playlist_name', 'My Favs TV'),
-	'plex_ip': getenv('plex_ip', '192.168.1.196'),
-	'plex_port': getenv('plex_port', '32400'),
-	'plex_api_token': getenv('plex_api_token', ''),
-	'user_id': getenv('user_id', '1'),
-	'max_episodes': int(getenv('max_episodes', 50)),
-	'excluded_slugs': LOCAL_CONFIG.get('excludedSlugs', []),
-	'omdb_api_key': getenv('omdb_api_key', ''),
-	'omdb_api_url': getenv('omdb_api_url', 'http://www.omdbapi.com/'),
-	'defaultRewatchDelayDays': default_rewatch_delays_days,
-	'metadata': LOCAL_CONFIG.get('metadata', []),
-	'movie_series_slugs': LOCAL_CONFIG.get('movieSeriesSlugs', []),
-	'restricted_play_months': LOCAL_CONFIG.get('restrictedPlayMonths', {}),
-	'tv_show_limit': LOCAL_CONFIG.get('tvShowLimit', 0),
+		'base_url': None,
+		'machine_id': None,
+		'playlist_key': None,
+		'movies_section_key': None,
+		'tv_section_key': None,
 
-	'base_url': None,
-	'machine_id': None,
-	'playlist_key': None,
-	'movies_section_key': None,
-	'tv_section_key': None,
+		'series_keys': [],  # List of objects with {key, last_viewed_at} properties
+		'series_seasons': {},
+		'series_episodes': {},
 
-	'series_keys': [],  # List of objects with {key, last_viewed_at} properties
-	'series_seasons': {},
-	'series_episodes': {},
+		'playlist_episode_keys': []
+	}
 
-	'playlist_episode_keys': []
-}
+def log_message(*args, **kwargs):
+	"""
+	Log a message to both the log file and stdout.
+	This function takes the same arguments as the print function.
+	"""
+	# Get the current timestamp
+	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+	
+	# Format the message
+	message = ' '.join(str(arg) for arg in args)
+	
+	# Print to stdout only if not in log-only mode
+	if not PLEX_GLOBALS.get('log_only', False):
+		print(*args, **kwargs)
+	
+	# Write to dated log file
+	with open(PLEX_GLOBALS['log_file'], 'a') as f:
+		f.write(f"[{timestamp}] {message}\n")
+
+def log_cron_message(script_name, args=None):
+	"""
+	Log a basic message to cron.log with script name and arguments.
+	This is used for cron job logging.
+	"""
+	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+	cron_log = PLEX_GLOBALS['log_dir'] / 'cron.log'
+	
+	# Only include non-None arguments that were actually passed
+	args_str = ' '.join(f"{k}={v}" for k, v in args.items() if v is not None) if args else ''
+	message = f"[{timestamp}] Running {script_name} with args: {args_str}"
+	
+	with open(cron_log, 'a') as f:
+		f.write(f"{message}\n")
 
 def load_globals(ssn):
 	"""
@@ -892,7 +891,7 @@ def rob_tv(ssn, args):
 	"""
 	# Convert to dict and filter out None values
 	args_dict = {k: v for k, v in vars(args).items() if v is not None}
-	log_cron_message('tvstation.py', args_dict)
+	log_cron_message(PLEX_GLOBALS['log_file'], args_dict)
 
 	# Check if any media is being watched
 	if is_media_being_watched(ssn):
@@ -964,16 +963,34 @@ def filter_common_words(slug):
 # ------------------------------------------
 # Main
 # ------------------------------------------
-def run_tvstation(args):
+def run_tvstation(args, file_location):
+	# Ensure logs directory exists
+	log_dir = file_location / 'logs'
+	log_dir.mkdir(exist_ok=True)
+
+	# Create log file with date prefix
+	current_date = time.strftime('%Y-%m-%d')
+	log_file = log_dir / f'{current_date}-tvstation.log'
+	if log_file.exists():
+		os.remove(log_file)
+
+	# Clear the log file
+	with open(log_file, 'w') as f:
+		f.write(f"Log file created at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+	local_config_file = file_location / 'local_config.json'
+	if not local_config_file.exists():
+		log_message("ERROR: local_config.json file not found!")
+		return
+
+	# Set PLEX_GLOBALS from local_config.json
+	set_plex_globals(local_config_file, log_dir, log_file, args.log_only)
 
 	#setup vars
 	ssn = requests.Session()
 	ssn.headers.update({'Accept': 'application/json'})
 	ssn.params.update({'X-Plex-Token': PLEX_GLOBALS['plex_api_token']})
 
-	# Set log-only mode if specified
-	PLEX_GLOBALS['log_only'] = args.log_only
-	
 	#call function and process result
 	response = rob_tv(ssn=ssn, args=args)
 

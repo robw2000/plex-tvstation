@@ -25,7 +25,7 @@ import time
 import glob
 from pathlib import Path
 
-def clean_old_logs():
+def clean_old_logs(logs_dir):
 	"""
 	Deletes log files that are older than 3 days.
 	"""
@@ -33,7 +33,6 @@ def clean_old_logs():
 	three_days_ago = current_time - (3 * 24 * 60 * 60)  # 3 days in seconds
 	
 	# Get all log files in the logs directory
-	logs_dir = Path("logs")
 	log_files = glob.glob(str(logs_dir / "*.log"))
 	
 	for log_file in log_files:
@@ -48,13 +47,13 @@ def clean_old_logs():
 			except Exception as e:
 				print(f"Error deleting log file {log_file}: {e}")
 
-def log_cron_message(script_name, args=None):
+def log_cron_message(script_name, args=None, logs_dir=None):
 	"""
 	Log a basic message to cron.log with script name and arguments.
 	This is used for cron job logging.
 	"""
 	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-	cron_log = Path("logs/cron.log")
+	cron_log = logs_dir / 'cron.log'
 	
 	# Only include non-None arguments that were actually passed
 	args_str = ' '.join(f"{k}={v}" for k, v in args.items() if v is not None) if args else ''
@@ -63,16 +62,16 @@ def log_cron_message(script_name, args=None):
 	with open(cron_log, 'a') as f:
 		f.write(f"{message}\n")
 
-def run_cleanup_logs():
+def run_cleanup_logs(file_dir):
 	"""
 	Main function that orchestrates the log cleanup.
 	"""
-	# Log script execution to cron.log
-	log_cron_message("cleanup_logs.py")
-	
-	# Create logs directory if it doesn't exist
-	logs_dir = Path("logs")
+	# Adjust paths to use file_location
+	logs_dir = file_dir / 'logs'
 	logs_dir.mkdir(exist_ok=True)
+
+	# Log script execution to cron.log
+	log_cron_message("cleanup_logs.py", logs_dir=file_dir / 'logs')
 	
 	# Clean up old log files
-	clean_old_logs()
+	clean_old_logs(logs_dir)

@@ -288,15 +288,15 @@ def create_movie_folder(movie_name: str, debug: bool = False) -> tuple:
 			print(f"Error creating movie folder: {e}")
 			return folder_path, False
 
-def process_wishlist_files(debug: bool = False) -> tuple:
+def process_wishlist_files(file_location, debug: bool = False) -> tuple:
 	"""Process the movie and TV show wishlist files"""
 	movie_folders = []
 	tv_folders = []
 	
 	# Process movie wishlist
-	if os.path.exists(MOVIE_WISHLIST_FILE):
+	if os.path.exists(file_location / MOVIE_WISHLIST_FILE):
 		print(f"\nProcessing movie wishlist from '{MOVIE_WISHLIST_FILE}'...")
-		with open(MOVIE_WISHLIST_FILE, 'r') as f:
+		with open(file_location / MOVIE_WISHLIST_FILE, 'r') as f:
 			movie_items = [line.strip() for line in f if line.strip()]
 			
 		if not movie_items:
@@ -315,9 +315,9 @@ def process_wishlist_files(debug: bool = False) -> tuple:
 		print(f"Warning: Movie wishlist file '{MOVIE_WISHLIST_FILE}' not found.")
 	
 	# Process TV show wishlist
-	if os.path.exists(TV_WISHLIST_FILE):
+	if os.path.exists(file_location / TV_WISHLIST_FILE):
 		print(f"\nProcessing TV show wishlist from '{TV_WISHLIST_FILE}'...")
-		with open(TV_WISHLIST_FILE, 'r') as f:
+		with open(file_location / TV_WISHLIST_FILE, 'r') as f:
 			tv_items = [line.strip() for line in f if line.strip()]
 			
 		if not tv_items:
@@ -337,14 +337,18 @@ def process_wishlist_files(debug: bool = False) -> tuple:
 		
 	return movie_folders, tv_folders
 
-def run_create_plex_folders(args):
+def run_create_plex_folders(args, file_location):
+	# Adjust paths to use file_location
+	logs_dir = file_location / 'logs'
+	logs_dir.mkdir(exist_ok=True)
+	
 	# Check if OMDB API key is available
 	if not OMDB_API_KEY:
 		print("Error: OMDB API key not found. Please set the 'omdb_api_key' environment variable.")
 		return
 		
 	# Process the wishlist files
-	movie_folders, tv_folders = process_wishlist_files(args.debug)
+	movie_folders, tv_folders = process_wishlist_files(file_location, args.debug)
 	
 	# Print summary
 	print("\n" + "="*50)

@@ -19,7 +19,6 @@ Setup:
 from os import getenv
 from dotenv import load_dotenv
 import requests
-import re
 
 # Load environment variables from .env file
 load_dotenv()
@@ -79,7 +78,11 @@ def get_tv_shows(ssn, tv_section_key):
 	results_json = results.json()
 	return results_json['MediaContainer']['Metadata']
 
-def run_slug_list():
+def run_slug_list(file_location):
+	# Adjust paths to use file_location
+	logs_dir = file_location / 'logs'
+	logs_dir.mkdir(exist_ok=True)
+
 	"""
 	Main function to print the list of all items and their slugs.
 	"""

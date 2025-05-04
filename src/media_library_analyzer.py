@@ -43,9 +43,7 @@ from dotenv import load_dotenv
 from tabulate import tabulate
 from typing import Dict, List, Set, Tuple
 import datetime
-import glob
 import time
-import argparse
 
 # Load environment variables
 load_dotenv()
@@ -61,7 +59,7 @@ OMDB_API_URL = os.getenv("omdb_api_url")
 
 # Get script directory for file operations
 SCRIPT_DIR = Path(__file__).parent.absolute()
-LOGS_DIR = SCRIPT_DIR / "logs"
+LOGS_DIR = SCRIPT_DIR / "../logs"
 LOGS_DIR.mkdir(exist_ok=True)
 
 def get_show_info(show_name: str) -> dict:
@@ -344,7 +342,7 @@ def log_cron_message(script_name, args=None):
 	with open(cron_log, 'a') as f:
 		f.write(f"{message}\n")
 
-def run_media_library_analyzer(args):
+def run_media_library_analyzer(args, file_location):
 	"""
 	Main function that orchestrates the media library analysis.
 	
@@ -358,6 +356,10 @@ def run_media_library_analyzer(args):
 	
 	# Log script execution to cron.log
 	log_cron_message("media_library_analyzer.py", vars(args))
+	
+	# Adjust paths to use file_location
+	logs_dir = file_location / 'logs'
+	logs_dir.mkdir(exist_ok=True)
 	
 	# Analyze local shows
 	print_message("Analyzing local TV shows...")
@@ -468,7 +470,7 @@ def run_media_library_analyzer(args):
 		summary_lines.extend(shows_with_missing_movies)
 	
 	# Use a fixed filename that will be overwritten each time
-	output_file = LOGS_DIR / "missing_episodes.md"
+	output_file = logs_dir / "missing_episodes.md"
 	
 	# Write to file
 	with open(output_file, "w") as f:
