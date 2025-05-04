@@ -66,10 +66,10 @@ import json
 from dotenv import load_dotenv
 import requests
 import re
-import requests, argparse
+import requests
 
 # Ensure logs directory exists
-logs_dir = path.join(path.dirname(path.abspath(__file__)), 'logs')
+logs_dir = path.join(path.dirname(path.abspath(__file__)), '../logs')
 if not path.exists(logs_dir):
 	makedirs(logs_dir)
 

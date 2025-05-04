@@ -1,5 +1,33 @@
 #!/usr/bin/env python3
 
+"""
+Script to create Plex media folders based on wishlist files.
+
+This script reads movie and TV show names from wishlist files and creates properly 
+formatted folders in the Plex media directories. It uses the OMDB API to look up 
+metadata like release years and exact titles.
+
+The empty folders created by this script allow plex_library_report.py to include
+wishlist items in the missing episodes report, helping track what content still 
+needs to be acquired.
+
+Key features:
+- Creates movie folders in format "Movie Title (Year)" 
+- Creates TV show folders in format "Show Title Year-EndYear"
+- Handles exact title matching and fuzzy matching
+- Avoids creating duplicate folders
+- Debug mode to preview folder creation
+- Rate limiting for API calls
+
+Required environment variables:
+- omdb_api_key: API key for OMDB API access
+- omdb_api_url: Base URL for OMDB API
+
+Required files:
+- movie_wishlist.txt: List of movies to create folders for
+- tv_wishlist.txt: List of TV shows to create folders for
+"""
+
 import os
 import re
 import sys
@@ -309,12 +337,7 @@ def process_wishlist_files(debug: bool = False) -> tuple:
 		
 	return movie_folders, tv_folders
 
-def main():
-	# Parse command line arguments
-	parser = argparse.ArgumentParser(description='Create Plex folders for movies and TV shows.')
-	parser.add_argument('--debug', action='store_true', help='Show what folders would be created without actually creating them')
-	args = parser.parse_args()
-	
+def run_create_plex_folders(args):
 	# Check if OMDB API key is available
 	if not OMDB_API_KEY:
 		print("Error: OMDB API key not found. Please set the 'omdb_api_key' environment variable.")
@@ -348,6 +371,3 @@ def main():
 		print("  None")
 		
 	print("\nProcessing complete!")
-
-if __name__ == "__main__":
-	main() 
