@@ -63,13 +63,8 @@ import os
 import time
 import hashlib
 import json
-from dotenv import load_dotenv
 import requests
 import re
-import requests
-
-# Load environment variables from .env file
-load_dotenv()
 
 # Global variables
 log_file = None

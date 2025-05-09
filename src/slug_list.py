@@ -7,28 +7,35 @@ The slugs are used by tvstation.py for playlist management and filtering.
 
 Requirements (python3 -m pip install [requirement]):
 	requests
-	python-dotenv
 
 Setup:
 	Fill the variables in the .env file or set them as environment variables:
 		plex_ip: The ip address of your plex server.
 		plex_port: The port of your plex server. Usually 32400.
 		plex_api_token: The api token for your plex server. This can be found by opening the plex web interface, opening the browser dev tools,
-						and finding the value of the X-Plex-Token query parameter on any plex request.
+		and finding the value of the X-Plex-Token query parameter on any plex request.
 """
 from os import getenv
-from dotenv import load_dotenv
 import requests
 
-# Load environment variables from .env file
-load_dotenv()
-
 PLEX_GLOBALS = {
-	'plex_ip': getenv('plex_ip', '192.168.1.196'),
-	'plex_port': getenv('plex_port', '32400'),
-	'plex_api_token': getenv('plex_api_token', ''),
+	'plex_ip': '',
+	'plex_port': '',
+	'plex_api_token': '',
 	'base_url': None
 }
+
+def set_plex_globals():
+	"""
+	Set the PLEX_GLOBALS dictionary with values from environment variables.
+	"""
+	global PLEX_GLOBALS
+	PLEX_GLOBALS = {
+		'plex_ip': getenv('plex_ip', '192.168.1.196'),
+		'plex_port': getenv('plex_port', '32400'),
+		'plex_api_token': getenv('plex_api_token', ''),
+		'base_url': None
+	}
 
 def get_base_url():
 	"""
@@ -45,7 +52,9 @@ def get_section_keys(ssn):
 	Retrieves the section keys for Movies and TV Shows from the Plex server.
 	"""
 	base_url = get_base_url()
-	sections = ssn.get(f'{base_url}/library/sections/').json()['MediaContainer']['Directory']
+	sectionsJson = ssn.get(f'{base_url}/library/sections/').json()
+	sectionsMedia = sectionsJson['MediaContainer']
+	sections = sectionsMedia['Directory']
 	
 	movie_section_key = None
 	tv_section_key = None
@@ -79,13 +88,16 @@ def get_tv_shows(ssn, tv_section_key):
 	return results_json['MediaContainer']['Metadata']
 
 def run_slug_list(file_location):
+	"""
+	Main function to print the list of all items and their slugs.
+	"""
 	# Adjust paths to use file_location
 	logs_dir = file_location / 'logs'
 	logs_dir.mkdir(exist_ok=True)
 
-	"""
-	Main function to print the list of all items and their slugs.
-	"""
+	# Call the function to initialize PLEX_GLOBALS
+	set_plex_globals()
+
 	# Setup session
 	ssn = requests.Session()
 	ssn.headers.update({'Accept': 'application/json'})

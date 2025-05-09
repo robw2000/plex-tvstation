@@ -10,21 +10,46 @@ This script generates a detailed report of your Plex library, including:
 - Storage usage statistics
 """
 
-from os import getenv, path, makedirs
+from os import getenv, path, makedirs, walk, stat
+import os
+from pathlib import Path
 import re
 import time
-from dotenv import load_dotenv
 import requests
 
-# Ensure logs directory exists
-logs_dir = path.join(path.dirname(path.abspath(__file__)), '../logs')
-if not path.exists(logs_dir):
-	makedirs(logs_dir)
+from media_library_analyzer import PLEX_GLOBALS
 
-# Create log file with date prefix
-current_date = time.strftime('%Y-%m-%d')
-log_file = path.join(logs_dir, f'{current_date}-plex_library_report.log')
-markdown_file = path.join(logs_dir, 'library-media.md')
+def initialize_plex_globals(file_location):
+	"""
+	Initialize the PLEX_GLOBALS dictionary with environment variables and other global settings.
+	"""
+
+	# Ensure plex_folder is set
+	if not getenv('plex_folder'):
+		log_message("Error: plex_folder environment variable is not set.")
+		raise EnvironmentError("plex_folder environment variable is not set.")
+
+	# Adjust paths to use file_location
+	logs_dir = file_location / 'logs'
+	logs_dir.mkdir(exist_ok=True)
+
+	# Create log file with date prefix
+	current_date = time.strftime('%Y-%m-%d')
+	plex_globals = {
+		'plex_ip': getenv('plex_ip', '192.168.1.196'),
+		'plex_port': getenv('plex_port', '32400'),
+		'plex_api_token': getenv('plex_api_token', ''),
+		'user_id': getenv('user_id', '1'),
+		'base_url': None,
+		'movies_section_key': None,
+		'tv_section_key': None,
+		'plex_folder': getenv('plex_folder', ''),
+		'logs_dir': logs_dir,
+		'log_file': path.join(logs_dir, f'{current_date}-plex_library_report.log'),
+		'markdown_file': path.join(logs_dir, 'library-media.md')
+	}
+
+	return plex_globals
 
 def log_message(*args, **kwargs):
 	"""
@@ -41,41 +66,28 @@ def log_message(*args, **kwargs):
 	print(*args, **kwargs)
 	
 	# Write to dated log file
-	with open(log_file, 'a') as f:
+	with open(PLEX_GLOBALS['log_file'], 'a') as f:
 		f.write(f"[{timestamp}] {message}\n")
 
 def write_markdown(*args, **kwargs):
 	"""
 	Write a message to the markdown file.
-	This function takes the same arguments as the print function.
+	ThiPLEX_GLOBALSakes the same arguments as the print function.
 	"""
 	# Format the message
 	message = ' '.join(str(arg) for arg in args)
 	
 	# Write to markdown file
-	with open(markdown_file, 'a') as f:
+	with open(PLEX_GLOBALS['markdown_file'], 'a') as f:
 		f.write(f"{message}\n")
 
 def clear_markdown():
 	"""
 	Clear the markdown file and add the header.
 	"""
-	with open(markdown_file, 'w') as f:
+	with open(PLEX_GLOBALS['markdown_file'], 'w') as f:
 		f.write("# Plex Library Report\n\n")
 		f.write(f"Generated on: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-
-# Load environment variables from .env file
-load_dotenv()
-
-PLEX_GLOBALS = {
-	'plex_ip': getenv('plex_ip', '192.168.1.196'),
-	'plex_port': getenv('plex_port', '32400'),
-	'plex_api_token': getenv('plex_api_token', ''),
-	'user_id': getenv('user_id', '1'),
-	'base_url': None,
-	'movies_section_key': None,
-	'tv_section_key': None
-}
 
 def get_base_url():
 	"""
@@ -104,9 +116,34 @@ def get_section_keys(ssn):
 
 	return PLEX_GLOBALS['movies_section_key'], PLEX_GLOBALS['tv_section_key']
 
+def calculate_directory_size(directory, title=None, year=None):
+	total_size = 0
+	# print(f"Calculating size for directory: {directory}")  # Debugging output
+	for dirpath, dirnames, filenames in walk(directory):
+		for d in dirnames:
+			if '/Movies' in str(directory) and title is not None and year is not None and d.startswith(title) and d.endswith(str(year)):
+				dp = path.join(dirpath, d)
+				return calculate_directory_size(dp)
+			elif '/TV Shows' in str(directory) and title is not None and d.startswith(title):
+				dp = path.join(dirpath, d)
+				return calculate_directory_size(dp)
+			elif '/TV Shows' in str(directory) and d.startswith('Season '):
+				dp = path.join(dirpath, d)
+				return calculate_directory_size(dp)
+
+		for f in filenames:
+			fp = path.join(dirpath, f)
+			try:
+				file_size = stat(fp).st_size
+				total_size += file_size
+				# print(f"File: {fp}, Size: {file_size}")  # Debugging output
+			except FileNotFoundError:
+				print(f"File not found: {fp}")  # Debugging output
+	return total_size
+
 def get_movie_stats(ssn):
 	"""
-	Retrieves statistics about movies in the library.
+	Retrieves statistics about movies in the library, including file sizes from disk.
 	"""
 	base_url = get_base_url()
 	movie_section_key, _ = get_section_keys(ssn)
@@ -123,10 +160,16 @@ def get_movie_stats(ssn):
 	# Create a list of all movies with their details
 	movies_list = []
 	for movie in movie_list:
+		# Calculate file size from disk
+		movies_path = Path(PLEX_GLOBALS['plex_folder']) / 'Movies'
+		
+		# print(f"Checking movie path {movies_path} for {movie['title']}")  # Debugging output
+		file_size = calculate_directory_size(movies_path, movie['title'], movie['year'])
 		movies_list.append({
 			'title': movie['title'],
 			'year': movie.get('year', 'Unknown'),
-			'watched': movie.get('viewCount', 0) > 0
+			'watched': movie.get('viewCount', 0) > 0,
+			'file_size': format_size(file_size)
 		})
 	
 	return {
@@ -138,7 +181,7 @@ def get_movie_stats(ssn):
 
 def get_tv_stats(ssn):
 	"""
-	Retrieves statistics about TV shows in the library.
+	Retrieves statistics about TV shows in the library, including file sizes from disk.
 	"""
 	base_url = get_base_url()
 	_, tv_section_key = get_section_keys(ssn)
@@ -160,6 +203,7 @@ def get_tv_stats(ssn):
 		
 		show_episodes = 0
 		show_watched = 0
+		show_size = 0
 		
 		for season in seasons:
 			season_key = season['ratingKey']
@@ -167,6 +211,12 @@ def get_tv_stats(ssn):
 			
 			show_episodes += len(episodes)
 			show_watched += len([e for e in episodes if e.get('viewCount', 0) > 0])
+			
+			# Calculate file size from disk for each episode
+			for episode in episodes:
+				tv_show_path = Path(PLEX_GLOBALS['plex_folder']) / 'TV Shows'
+				print(f"Checking episode path {tv_show_path} for {series['title']} and {episode['title']}")  # Debugging output
+				show_size += calculate_directory_size(tv_show_path, series['title'])
 		
 		total_episodes += show_episodes
 		watched_episodes += show_watched
@@ -175,7 +225,8 @@ def get_tv_stats(ssn):
 			'title': series['title'],
 			'episodes': show_episodes,
 			'watched': show_watched,
-			'percent_watched': (show_watched / show_episodes * 100) if show_episodes > 0 else 0
+			'percent_watched': (show_watched / show_episodes * 100) if show_episodes > 0 else 0,
+			'file_size': format_size(show_size)
 		})
 	
 	return {
@@ -198,7 +249,7 @@ def format_size(size_bytes):
 
 def generate_report(ssn):
 	"""
-	Generates a comprehensive report of the Plex library.
+	Generates a comprehensive report of the Plex library, including file sizes.
 	"""
 	# Clear and initialize markdown file
 	clear_markdown()
@@ -224,17 +275,17 @@ def generate_report(ssn):
 	log_message("=== Movie List ===")
 	write_markdown("### Movie List\n")
 	
-	log_message("Title | Year | Watched")
+	log_message("Title | Year | Watched | File Size")
 	log_message("----------------------------------------")
-	write_markdown("| Title | Year | Watched |")
-	write_markdown("|-------|------|---------|")
+	write_markdown("| Title | Year | Watched | File Size |")
+	write_markdown("|-------|------|---------|-----------|")
 	
 	movie_stats['movies_list'].sort(key=lambda x: re.sub(r'\b(the|a|an|and|or|but|in|on|at|to|for|of)\b', '', x['title'].lower()))
 	
 	for movie in movie_stats['movies_list']:
 		watched_status = "Yes" if movie['watched'] else "No"
-		log_message(f"{movie['title']} | {movie['year']} | {watched_status}")
-		write_markdown(f"| {movie['title']} | {movie['year']} | {watched_status} |")
+		log_message(f"{movie['title']} | {movie['year']} | {watched_status} | {movie['file_size']}")
+		write_markdown(f"| {movie['title']} | {movie['year']} | {watched_status} | {movie['file_size']} |")
 	
 	# Get TV show statistics
 	tv_stats = get_tv_stats(ssn)
@@ -257,21 +308,21 @@ def generate_report(ssn):
 	log_message("=== TV Show Details ===")
 	write_markdown("### TV Show Details\n")
 	
-	log_message("Title | Episodes | Watched | % Watched")
+	log_message("Title | Episodes | Watched | % Watched | File Size")
 	log_message("----------------------------------------")
-	write_markdown("| Title | Episodes | Watched | % Watched |")
-	write_markdown("|-------|----------|---------|-----------|")
+	write_markdown("| Title | Episodes | Watched | % Watched | File Size |")
+	write_markdown("|-------|----------|---------|-----------|-----------|")
 	
 	tv_stats['shows_stats'].sort(key=lambda x: re.sub(r'\b(the|a|an|and|or|but|in|on|at|to|for|of)\b', '', x['title'].lower()))
 	
 	for show in sorted(tv_stats['shows_stats'], key=lambda x: x['title']):
-		log_message(f"{show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}%")
-		write_markdown(f"| {show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}% |")
+		log_message(f"{show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}% | {show['file_size']}")
+		write_markdown(f"| {show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}% | {show['file_size']} |")
 
 def run_plex_report(file_location):
-	# Adjust paths to use file_location
-	logs_dir = file_location / 'logs'
-	logs_dir.mkdir(exist_ok=True)
+	# Initialize PLEX_GLOBALS
+	global PLEX_GLOBALS
+	PLEX_GLOBALS = initialize_plex_globals(file_location)
 
 	# Setup session
 	ssn = requests.Session()

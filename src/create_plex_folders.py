@@ -33,21 +33,31 @@ import re
 import sys
 from pathlib import Path
 import requests
-from dotenv import load_dotenv
 import time
 import difflib
-import argparse
 
-# Load environment variables
-load_dotenv()
+# Global variables
+PLEX_GLOBALS = {}
 
-# Constants
-TV_SHOWS_PATH = Path("/mnt/g/plex/TV Shows")
-MOVIES_PATH = Path("/mnt/g/plex/Movies")
-OMDB_API_KEY = os.getenv("omdb_api_key")
-OMDB_API_URL = os.getenv("omdb_api_url")
-MOVIE_WISHLIST_FILE = "movie_wishlist.txt"
-TV_WISHLIST_FILE = "tv_wishlist.txt"
+def set_plex_globals():
+	"""Set the PLEX_GLOBALS dictionary with necessary global variables."""
+	global PLEX_GLOBALS
+	
+	plex_folder = Path(os.getenv("plex_folder", ""))
+	PLEX_GLOBALS = {
+		'plex_folder': plex_folder,
+		'TV_SHOWS_PATH': plex_folder / "TV Shows",
+		'MOVIES_PATH': plex_folder / "Movies",
+		'OMDB_API_KEY': os.getenv("omdb_api_key"),
+		'OMDB_API_URL': os.getenv("omdb_api_url"),
+		'MOVIE_WISHLIST_FILE': "movie_wishlist.txt",
+		'TV_WISHLIST_FILE': "tv_wishlist.txt"
+	}
+
+	# Check if plex_folder environment variable is set
+	if not PLEX_GLOBALS.get('plex_folder'):
+		print("Error: plex_folder environment variable is not set.")
+		sys.exit(1)
 
 def normalize_title(title: str) -> str:
 	"""Normalize a title by removing non-alphanumeric characters and converting to lowercase"""
@@ -73,11 +83,11 @@ def get_show_info(show_name: str) -> dict:
 	
 	# First search for the show to get the exact title
 	search_params = {
-		"apikey": OMDB_API_KEY,
+		"apikey": PLEX_GLOBALS['OMDB_API_KEY'],
 		"s": clean_show_name,
 		"type": "series"
 	}
-	search_response = requests.get(OMDB_API_URL, params=search_params)
+	search_response = requests.get(PLEX_GLOBALS['OMDB_API_URL'], params=search_params)
 	search_results = search_response.json()
 	
 	print(f"Search results for '{clean_show_name}': {search_results.get('Response', 'Unknown')}")
@@ -120,11 +130,11 @@ def get_show_info(show_name: str) -> dict:
 	
 	# Now get the show info using the exact title
 	params = {
-		"apikey": OMDB_API_KEY,
+		"apikey": PLEX_GLOBALS['OMDB_API_KEY'],
 		"t": exact_title,
 		"type": "series"
 	}
-	response = requests.get(OMDB_API_URL, params=params)
+	response = requests.get(PLEX_GLOBALS['OMDB_API_URL'], params=params)
 	return response.json()
 
 def get_movie_info(movie_name: str) -> dict:
@@ -134,11 +144,11 @@ def get_movie_info(movie_name: str) -> dict:
 	
 	# First search for the movie to get the exact title
 	search_params = {
-		"apikey": OMDB_API_KEY,
+		"apikey": PLEX_GLOBALS['OMDB_API_KEY'],
 		"s": clean_movie_name,
 		"type": "movie"
 	}
-	search_response = requests.get(OMDB_API_URL, params=search_params)
+	search_response = requests.get(PLEX_GLOBALS['OMDB_API_URL'], params=search_params)
 	search_results = search_response.json()
 	
 	print(f"Search results for '{clean_movie_name}': {search_results.get('Response', 'Unknown')}")
@@ -185,7 +195,8 @@ def get_movie_info(movie_name: str) -> dict:
 				print(f"Rejecting match '{matched_title}' as it appears to be a sequel or alternate cut")
 				# Try to find a match without sequel numbers
 				non_sequel_matches = [title for title in choices 
-									if not any(word.isdigit() for word in set(normalize_title(title).split()) - normalized_input_words)]
+								        if not any(word.isdigit()
+						                for word in set(normalize_title(title).split()) - normalized_input_words)]
 				if non_sequel_matches:
 					exact_title = non_sequel_matches[0]
 					print(f"Found non-sequel match: '{exact_title}'")
@@ -203,11 +214,11 @@ def get_movie_info(movie_name: str) -> dict:
 	
 	# Now get the movie info using the exact title
 	params = {
-		"apikey": OMDB_API_KEY,
+		"apikey": PLEX_GLOBALS['OMDB_API_KEY'],
 		"t": exact_title,
 		"type": "movie"
 	}
-	response = requests.get(OMDB_API_URL, params=params)
+	response = requests.get(PLEX_GLOBALS['OMDB_API_URL'], params=params)
 	return response.json()
 
 def create_tv_show_folder(show_name: str, debug: bool = False) -> tuple:
@@ -231,7 +242,7 @@ def create_tv_show_folder(show_name: str, debug: bool = False) -> tuple:
 		folder_name = f"{show_title} {start_year}"
 		
 	# Create folder path
-	folder_path = TV_SHOWS_PATH / folder_name
+	folder_path = PLEX_GLOBALS['TV_SHOWS_PATH'] / folder_name
 	
 	# Check if folder already exists
 	if folder_path.exists():
@@ -268,7 +279,7 @@ def create_movie_folder(movie_name: str, debug: bool = False) -> tuple:
 	folder_name = f"{movie_title} {year}"
 		
 	# Create folder path
-	folder_path = MOVIES_PATH / folder_name
+	folder_path = PLEX_GLOBALS['MOVIES_PATH'] / folder_name
 	
 	# Check if folder already exists
 	if folder_path.exists():
@@ -294,13 +305,13 @@ def process_wishlist_files(file_location, debug: bool = False) -> tuple:
 	tv_folders = []
 	
 	# Process movie wishlist
-	if os.path.exists(file_location / MOVIE_WISHLIST_FILE):
-		print(f"\nProcessing movie wishlist from '{MOVIE_WISHLIST_FILE}'...")
-		with open(file_location / MOVIE_WISHLIST_FILE, 'r') as f:
+	if os.path.exists(file_location / PLEX_GLOBALS['MOVIE_WISHLIST_FILE']):
+		print(f"\nProcessing movie wishlist from '{PLEX_GLOBALS['MOVIE_WISHLIST_FILE']}'...")
+		with open(file_location / PLEX_GLOBALS['MOVIE_WISHLIST_FILE'], 'r') as f:
 			movie_items = [line.strip() for line in f if line.strip()]
 			
 		if not movie_items:
-			print(f"Warning: '{MOVIE_WISHLIST_FILE}' is empty.")
+			print(f"Warning: '{PLEX_GLOBALS['MOVIE_WISHLIST_FILE']}' is empty.")
 		else:
 			print(f"Found {len(movie_items)} movies to process.")
 			
@@ -312,16 +323,16 @@ def process_wishlist_files(file_location, debug: bool = False) -> tuple:
 				# Add a small delay to avoid hitting API rate limits
 				time.sleep(1)
 	else:
-		print(f"Warning: Movie wishlist file '{MOVIE_WISHLIST_FILE}' not found.")
+		print(f"Warning: Movie wishlist file '{PLEX_GLOBALS['MOVIE_WISHLIST_FILE']}' not found.")
 	
 	# Process TV show wishlist
-	if os.path.exists(file_location / TV_WISHLIST_FILE):
-		print(f"\nProcessing TV show wishlist from '{TV_WISHLIST_FILE}'...")
-		with open(file_location / TV_WISHLIST_FILE, 'r') as f:
+	if os.path.exists(file_location / PLEX_GLOBALS['TV_WISHLIST_FILE']):
+		print(f"\nProcessing TV show wishlist from '{PLEX_GLOBALS['TV_WISHLIST_FILE']}'...")
+		with open(file_location / PLEX_GLOBALS['TV_WISHLIST_FILE'], 'r') as f:
 			tv_items = [line.strip() for line in f if line.strip()]
 			
 		if not tv_items:
-			print(f"Warning: '{TV_WISHLIST_FILE}' is empty.")
+			print(f"Warning: '{PLEX_GLOBALS['TV_WISHLIST_FILE']}' is empty.")
 		else:
 			print(f"Found {len(tv_items)} TV shows to process.")
 			
@@ -333,17 +344,21 @@ def process_wishlist_files(file_location, debug: bool = False) -> tuple:
 				# Add a small delay to avoid hitting API rate limits
 				time.sleep(1)
 	else:
-		print(f"Warning: TV show wishlist file '{TV_WISHLIST_FILE}' not found.")
+		print(f"Warning: TV show wishlist file '{PLEX_GLOBALS['TV_WISHLIST_FILE']}' not found.")
 		
 	return movie_folders, tv_folders
 
 def run_create_plex_folders(args, file_location):
-	# Adjust paths to use file_location
+	set_plex_globals()
+	
+    # Adjust paths to use file_location
 	logs_dir = file_location / 'logs'
 	logs_dir.mkdir(exist_ok=True)
+	PLEX_GLOBALS['LOG_FILE'] = logs_dir / 'plex_folders.log'
+	
 	
 	# Check if OMDB API key is available
-	if not OMDB_API_KEY:
+	if not PLEX_GLOBALS['OMDB_API_KEY']:
 		print("Error: OMDB API key not found. Please set the 'omdb_api_key' environment variable.")
 		return
 		

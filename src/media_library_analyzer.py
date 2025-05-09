@@ -39,28 +39,36 @@ import os
 import re
 from pathlib import Path
 import requests
-from dotenv import load_dotenv
 from tabulate import tabulate
 from typing import Dict, List, Set, Tuple
 import datetime
 import time
 
-# Load environment variables
-load_dotenv()
-
 # Global variables
 log_only = False
 
-# Constants
-TV_SHOWS_PATH = Path("/mnt/g/plex/TV Shows")
-MOVIES_PATH = Path("/mnt/g/plex/Movies")
-OMDB_API_KEY = os.getenv("omdb_api_key")
-OMDB_API_URL = os.getenv("omdb_api_url")
+# Define PLEX_GLOBALS to hold constants
+PLEX_GLOBALS = {
+	'plex_folder': None,
+	'TV_SHOWS_PATH': None,
+	'MOVIES_PATH': None,
+	'OMDB_API_KEY': None,
+	'OMDB_API_URL': None,
+	'logs_dir': None
+}
 
-# Get script directory for file operations
-SCRIPT_DIR = Path(__file__).parent.absolute()
-LOGS_DIR = SCRIPT_DIR / "../logs"
-LOGS_DIR.mkdir(exist_ok=True)
+def initialize_plex_globals():
+	"""
+	Initialize the PLEX_GLOBALS dictionary with environment variables and paths.
+	"""
+	PLEX_GLOBALS['plex_folder'] = os.getenv('plex_folder')
+	if not PLEX_GLOBALS['plex_folder']:
+		raise EnvironmentError("plex_folder environment variable is not set.")
+
+	PLEX_GLOBALS['TV_SHOWS_PATH'] = Path(PLEX_GLOBALS['plex_folder']) / "TV Shows"
+	PLEX_GLOBALS['MOVIES_PATH'] = Path(PLEX_GLOBALS['plex_folder']) / "Movies"
+	PLEX_GLOBALS['OMDB_API_KEY'] = os.getenv('omdb_api_key')
+	PLEX_GLOBALS['OMDB_API_URL'] = os.getenv('omdb_api_url')
 
 def get_show_info(show_name: str) -> dict:
 	"""
@@ -80,11 +88,11 @@ def get_show_info(show_name: str) -> dict:
 	
 	# First search for the show to get the exact title
 	search_params = {
-		"apikey": OMDB_API_KEY,
+		"apikey": PLEX_GLOBALS['OMDB_API_KEY'],
 		"s": clean_show_name,
 		"type": "series"
 	}
-	search_response = requests.get(OMDB_API_URL, params=search_params)
+	search_response = requests.get(PLEX_GLOBALS['OMDB_API_URL'], params=search_params)
 	search_results = search_response.json()
 	
 	print_message(f"Search results for '{clean_show_name}': {search_results.get('Response', 'Unknown')}")
@@ -101,11 +109,11 @@ def get_show_info(show_name: str) -> dict:
 	
 	# Now get the show info using the exact title
 	params = {
-		"apikey": OMDB_API_KEY,
+		"apikey": PLEX_GLOBALS['OMDB_API_KEY'],
 		"t": exact_title,
 		"type": "series"
 	}
-	response = requests.get(OMDB_API_URL, params=params)
+	response = requests.get(PLEX_GLOBALS['OMDB_API_URL'], params=params)
 	return response.json()
 
 def get_episode_info(show_name: str, season: int) -> dict:
@@ -127,11 +135,11 @@ def get_episode_info(show_name: str, season: int) -> dict:
 	
 	# First search for the show to get the exact title
 	search_params = {
-		"apikey": OMDB_API_KEY,
+		"apikey": PLEX_GLOBALS['OMDB_API_KEY'],
 		"s": clean_show_name,
 		"type": "series"
 	}
-	search_response = requests.get(OMDB_API_URL, params=search_params)
+	search_response = requests.get(PLEX_GLOBALS['OMDB_API_URL'], params=search_params)
 	search_results = search_response.json()
 	
 	if search_results.get("Response") == "False" or "Error" in search_results:
@@ -145,12 +153,12 @@ def get_episode_info(show_name: str, season: int) -> dict:
 	
 	# Now get the episode info using the exact title
 	params = {
-		"apikey": OMDB_API_KEY,
+		"apikey": PLEX_GLOBALS['OMDB_API_KEY'],
 		"t": exact_title,
 		"type": "series",
 		"Season": season
 	}
-	response = requests.get(OMDB_API_URL, params=params)
+	response = requests.get(PLEX_GLOBALS['OMDB_API_URL'], params=params)
 	return response.json()
 
 def analyze_local_shows() -> Dict[str, Dict[int, Set[str]]]:
@@ -166,9 +174,9 @@ def analyze_local_shows() -> Dict[str, Dict[int, Set[str]]]:
 	"""
 	local_shows = {}
 	
-	print_message(f"Looking for TV shows in: {TV_SHOWS_PATH}")
+	print_message(f"Looking for TV shows in: {PLEX_GLOBALS['TV_SHOWS_PATH']}")
 	
-	for show_path in TV_SHOWS_PATH.iterdir():
+	for show_path in PLEX_GLOBALS['TV_SHOWS_PATH'].iterdir():
 		if not show_path.is_dir():
 			continue
 			
@@ -296,9 +304,9 @@ def analyze_local_movies() -> List[Tuple[str, str, str]]:
 	"""
 	missing_items = []
 	
-	print_message(f"Looking for movies in: {MOVIES_PATH}")
+	print_message(f"Looking for movies in: {PLEX_GLOBALS['MOVIES_PATH']}")
 	
-	for movie_path in MOVIES_PATH.iterdir():
+	for movie_path in PLEX_GLOBALS['MOVIES_PATH'].iterdir():
 		if not movie_path.is_dir():
 			continue
 			
@@ -333,7 +341,7 @@ def log_cron_message(script_name, args=None):
 	This is used for cron job logging.
 	"""
 	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-	cron_log = LOGS_DIR / "cron.log"
+	cron_log = PLEX_GLOBALS['logs_dir'] / "cron.log"
 	
 	# Only include non-None arguments that were actually passed
 	args_str = ' '.join(f"{k}={v}" for k, v in args.items() if v is not None) if args else ''
@@ -349,84 +357,87 @@ def run_media_library_analyzer(args, file_location):
 	Arguments:
 		--log-only, -l: If specified, only log the script execution without performing analysis
 	"""
-	
+	# Initialize PLEX_GLOBALS
+	initialize_plex_globals()
+
 	# Set global log_only variable
 	global log_only
 	log_only = args.log_only
-	
-	# Log script execution to cron.log
-	log_cron_message("media_library_analyzer.py", vars(args))
-	
+
 	# Adjust paths to use file_location
 	logs_dir = file_location / 'logs'
 	logs_dir.mkdir(exist_ok=True)
-	
+	PLEX_GLOBALS['logs_dir'] = logs_dir
+
+	# Log script execution to cron.log
+	log_cron_message("media_library_analyzer.py", vars(args))
+
 	# Analyze local shows
 	print_message("Analyzing local TV shows...")
 	local_shows = analyze_local_shows()
-	
+
 	# Compare with OMDB data
 	print_message("Comparing with OMDB data...")
 	all_missing_items = []
-	
+
 	for show_name, seasons in local_shows.items():
 		print_message(f"Analyzing {show_name}...")
 		missing_items = analyze_show(show_name, seasons)
 		all_missing_items.extend(missing_items)
-		
+
 	# Analyze local movies
 	print_message("\nAnalyzing local movies...")
 	movie_missing_items = analyze_local_movies()
 	all_missing_items.extend(movie_missing_items)
-		
+
 	# Create markdown report
 	headers = ["Show", "Season", "Missing Item"]
 	markdown_table = tabulate(all_missing_items, headers=headers, tablefmt="pipe")
-	
+
 	# Generate summary section
 	show_summary = {}
 	for show, season, item in all_missing_items:
 		if show not in show_summary:
 			show_summary[show] = {}
-		
+
 		if season == "Error":
 			continue
-			
+
 		if season == "Movie":
 			if "Movie" not in show_summary[show]:
 				show_summary[show]["Movie"] = []
 			show_summary[show]["Movie"].append(item)
 			continue
-			
+
 		season_num = int(season.split()[1])
 		if season_num not in show_summary[show]:
 			show_summary[show][season_num] = []
-			
+
 		if item == "Entire season missing":
 			show_summary[show][season_num] = ["Entire season missing"]
 		else:
 			show_summary[show][season_num].append(item)
-	
+
 	# Format summary as markdown
 	summary_lines = ["\n## Summary of Missing Content\n"]
-	
+
 	# Create separate lists for shows with missing episodes and movies
 	shows_with_missing_episodes = []
 	shows_with_missing_movies = []
-	
+
 	for show in sorted(show_summary.keys()):
 		episode_summary = []
 		movie_summary = []
-		
+
 		# Handle movies first
 		if "Movie" in show_summary[show]:
 			movie_summary.append(f"{', '.join(show_summary[show]['Movie'])}")
-			
+
 		# Then handle TV show seasons
 		for season_num in sorted(show_summary[show].keys()):
 			if season_num == "Movie":
 				continue
-				
+
 			items = show_summary[show][season_num]
 			if items == ["Entire season missing"]:
 				episode_summary.append(f"Season {season_num}")
@@ -436,12 +447,12 @@ def run_media_library_analyzer(args, file_location):
 					match = re.match(r"E(\d+)", item)
 					if match:
 						episode_nums.append(int(match.group(1)))
-				
+
 				if episode_nums:
 					# Get the total number of episodes in this season from OMDB
 					episode_info = get_episode_info(show, season_num)
 					total_episodes = len(episode_info.get("Episodes", [])) if episode_info.get("Response") == "True" else 0
-					
+
 					# If we have no episode info or all episodes are missing
 					if total_episodes == 0 or len(episode_nums) >= total_episodes:
 						episode_summary.append(f"Season {season_num}")
@@ -453,31 +464,31 @@ def run_media_library_analyzer(args, file_location):
 							episode_summary.append(f"Season {season_num} missing episode {episode_nums[0]}")
 						else:
 							episode_summary.append(f"Season {season_num} missing episodes {', '.join(map(str, sorted(episode_nums)))}")
-		
+
 		if episode_summary:
 			shows_with_missing_episodes.append(f"* `{show}` - {'; '.join(episode_summary)}")
-		
+
 		if movie_summary:
 			shows_with_missing_movies.append(f"* `{show}` - {'; '.join(movie_summary)}")
-	
+
 	# Add the sections to the summary
 	if shows_with_missing_episodes:
 		summary_lines.append("\n### Missing Episodes")
 		summary_lines.extend(shows_with_missing_episodes)
-	
+
 	if shows_with_missing_movies:
 		summary_lines.append("\n### Missing Movies")
 		summary_lines.extend(shows_with_missing_movies)
-	
+
 	# Use a fixed filename that will be overwritten each time
 	output_file = logs_dir / "missing_episodes.md"
-	
+
 	# Write to file
 	with open(output_file, "w") as f:
 		f.write("# Missing TV Show Episodes and Movies\n\n")
 		f.write(markdown_table)
 		f.write("\n".join(summary_lines))
 		f.write(f"\n\n---\nLast updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-	
+
 	print_message(f"\nAnalysis complete! Results written to {output_file}")
 

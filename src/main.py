@@ -1,6 +1,7 @@
 import argparse
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Import the modules for each functionality
 from media_library_analyzer import run_media_library_analyzer
@@ -10,13 +11,15 @@ from plex_library_report import run_plex_report
 from cleanup_logs import run_cleanup_logs
 from create_plex_folders import run_create_plex_folders
 
+# Load environment variables
+load_dotenv()
 
 def main():
 	parser = argparse.ArgumentParser(description='Plex TV Station Application')
 	parser.add_argument('-l', '--log-only', action='store_true', help='Only write to log files, do not print to stdout')
 	parser.add_argument('-f', '--file-dir', default=Path(__file__).parent.parent.absolute(),
 		help='The base file location for logs and configuration files')
-	parser.add_argument('action', nargs='?', default='tvstation',
+	parser.add_argument('action', nargs='?', default='slugs',
 		help="Action to perform: 'tvstation', 'slugs', 'report', 'analyze', 'clean-logs', 'folders'")
 	parser.add_argument('-d', '--debug', action='store_true', help='Enable debug mode for folder creation')
 
@@ -42,4 +45,4 @@ def main():
 
 
 if __name__ == '__main__':
-	main() 
+	main()
