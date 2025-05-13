@@ -175,9 +175,6 @@ def log_message(*args, **kwargs):
 	Log a message to both the log file and stdout.
 	This function takes the same arguments as the print function.
 	"""
-	# Get the current timestamp
-	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-	
 	# Format the message
 	message = ' '.join(str(arg) for arg in args)
 	
@@ -185,21 +182,20 @@ def log_message(*args, **kwargs):
 	if not PLEX_GLOBALS.get('log_only', False):
 		print(*args, **kwargs)
 	
-	# Write to dated log file
+	# Write to log file without timestamp
 	with open(PLEX_GLOBALS['log_file'], 'a') as f:
-		f.write(f"[{timestamp}] {message}\n")
+		f.write(f"{message}\n")
 
 def log_cron_message(script_name, args=None):
 	"""
 	Log a basic message to cron.log with script name and arguments.
 	This is used for cron job logging.
 	"""
-	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
 	cron_log = PLEX_GLOBALS['log_dir'] / 'cron.log'
 	
 	# Only include non-None arguments that were actually passed
 	args_str = ' '.join(f"{k}={v}" for k, v in args.items() if v is not None) if args else ''
-	message = f"[{timestamp}] Running {script_name} with args: {args_str}"
+	message = f"Running {script_name} with args: {args_str}"
 	
 	with open(cron_log, 'a') as f:
 		f.write(f"{message}\n")
@@ -963,15 +959,14 @@ def run_tvstation(args, file_location):
 	log_dir = file_location / 'logs'
 	log_dir.mkdir(exist_ok=True)
 
-	# Create log file with date prefix
-	current_date = time.strftime('%Y-%m-%d')
-	log_file = log_dir / f'{current_date}-tvstation.log'
+	# Create log file with fixed name
+	log_file = log_dir / 'tv-station.md'
 	if log_file.exists():
 		os.remove(log_file)
 
-	# Clear the log file
+	# Clear the log file and add creation timestamp
 	with open(log_file, 'w') as f:
-		f.write(f"Log file created at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+		f.write(f"# TV Station Log\n\nCreated at {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
 	local_config_file = file_location / 'local_config.json'
 	if not local_config_file.exists():

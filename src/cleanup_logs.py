@@ -3,75 +3,84 @@
 """
 Log Cleanup Script
 
-This script cleans up old log files from the logs directory.
-It deletes log files that are older than 3 days to prevent accumulation of old logs.
+This script cleans up the cron.log file by keeping only the last 3 days of activity.
+It reads the cron.log file, filters entries from the last 3 days, and writes them back.
 
 Requirements:
 - Python 3.x
 - Required Python packages:
   - os
   - time
-  - glob
   - pathlib
 
 Usage:
 - Run the script: python cleanup_logs.py
-- The script will delete log files older than 3 days
-- It will log its execution to cron.log
+- The script will keep only the last 3 days of entries in cron.log
 """
 
 import os
 import time
-import glob
 from pathlib import Path
+from datetime import datetime, timedelta
 
-def clean_old_logs(logs_dir):
+def clean_cron_log(logs_dir):
 	"""
-	Deletes log files that are older than 3 days.
+	Keeps only the last 3 days of entries in cron.log file.
+	For lines without timestamps, uses the last known timestamp or next known timestamp.
 	"""
-	current_time = time.time()
-	three_days_ago = current_time - (3 * 24 * 60 * 60)  # 3 days in seconds
-	
-	# Get all log files in the logs directory
-	log_files = glob.glob(str(logs_dir / "*.log"))
-	
-	for log_file in log_files:
-		# Get the file's modification time
-		file_time = os.path.getmtime(log_file)
-		
-		# If the file is older than 3 days, delete it
-		if file_time < three_days_ago:
-			try:
-				os.remove(log_file)
-				print(f"Deleted old log file: {log_file}")
-			except Exception as e:
-				print(f"Error deleting log file {log_file}: {e}")
-
-def log_cron_message(script_name, args=None, logs_dir=None):
-	"""
-	Log a basic message to cron.log with script name and arguments.
-	This is used for cron job logging.
-	"""
-	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
 	cron_log = logs_dir / 'cron.log'
+	if not cron_log.exists():
+		return
+
+	# Calculate timestamp for 3 days ago
+	three_days_ago = datetime.now() - timedelta(days=3)
 	
-	# Only include non-None arguments that were actually passed
-	args_str = ' '.join(f"{k}={v}" for k, v in args.items() if v is not None) if args else ''
-	message = f"[{timestamp}] Running {script_name} with args: {args_str}"
+	# Read all lines from cron.log
+	with open(cron_log, 'r') as f:
+		lines = f.readlines()
 	
-	with open(cron_log, 'a') as f:
-		f.write(f"{message}\n")
+	# First pass: collect all timestamps and their line numbers
+	timestamp_map = {}  # Maps line numbers to their timestamps
+	last_timestamp = None
+	
+	for i, line in enumerate(lines):
+		try:
+			# Extract timestamp from line [YYYY-MM-DD HH:MM:SS]
+			timestamp_str = line[1:20]  # Extract the timestamp portion
+			line_time = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
+			timestamp_map[i] = line_time
+			last_timestamp = line_time
+		except (ValueError, IndexError):
+			# If line doesn't have a timestamp, use the last known timestamp
+			if last_timestamp is not None:
+				timestamp_map[i] = last_timestamp
+	
+	# Second pass: for lines without timestamps, look forward for the next timestamp
+	next_timestamp = None
+	for i in range(len(lines) - 1, -1, -1):
+		if i in timestamp_map:
+			next_timestamp = timestamp_map[i]
+		elif next_timestamp is not None:
+			timestamp_map[i] = next_timestamp
+	
+	# Filter lines based on their timestamps
+	recent_lines = []
+	for i, line in enumerate(lines):
+		line_time = timestamp_map.get(i)
+		if line_time is None or line_time >= three_days_ago:
+			recent_lines.append(line)
+	
+	# Write filtered lines back to cron.log
+	with open(cron_log, 'w') as f:
+		f.writelines(recent_lines)
 
 def run_cleanup_logs(file_dir):
 	"""
-	Main function that orchestrates the log cleanup.
+	Main function that orchestrates the cron.log cleanup.
 	"""
 	# Adjust paths to use file_location
 	logs_dir = file_dir / 'logs'
 	logs_dir.mkdir(exist_ok=True)
-
-	# Log script execution to cron.log
-	log_cron_message("cleanup_logs.py", logs_dir=file_dir / 'logs')
 	
-	# Clean up old log files
-	clean_old_logs(logs_dir)
+	# Clean up cron.log file
+	clean_cron_log(logs_dir)

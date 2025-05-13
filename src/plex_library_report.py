@@ -221,12 +221,16 @@ def get_tv_stats(ssn):
 		total_episodes += show_episodes
 		watched_episodes += show_watched
 		
+		# Calculate average episode size
+		avg_episode_size = show_size / show_episodes if show_episodes > 0 else 0
+		
 		shows_stats.append({
 			'title': series['title'],
 			'episodes': show_episodes,
 			'watched': show_watched,
 			'percent_watched': (show_watched / show_episodes * 100) if show_episodes > 0 else 0,
-			'file_size': format_size(show_size)
+			'file_size': format_size(show_size),
+			'avg_episode_size': format_size(avg_episode_size)
 		})
 	
 	return {
@@ -308,16 +312,58 @@ def generate_report(ssn):
 	log_message("=== TV Show Details ===")
 	write_markdown("### TV Show Details\n")
 	
-	log_message("Title | Episodes | Watched | % Watched | File Size")
+	log_message("Title | Episodes | Watched | % Watched | Total Size | Avg Episode Size")
 	log_message("----------------------------------------")
-	write_markdown("| Title | Episodes | Watched | % Watched | File Size |")
-	write_markdown("|-------|----------|---------|-----------|-----------|")
+	write_markdown("| Title | Episodes | Watched | % Watched | Total Size | Avg Episode Size |")
+	write_markdown("|-------|----------|---------|-----------|------------|-----------------|")
 	
 	tv_stats['shows_stats'].sort(key=lambda x: re.sub(r'\b(the|a|an|and|or|but|in|on|at|to|for|of)\b', '', x['title'].lower()))
 	
 	for show in sorted(tv_stats['shows_stats'], key=lambda x: x['title']):
-		log_message(f"{show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}% | {show['file_size']}")
-		write_markdown(f"| {show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}% | {show['file_size']} |")
+		log_message(f"{show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}% | {show['file_size']} | {show['avg_episode_size']}")
+		write_markdown(f"| {show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}% | {show['file_size']} | {show['avg_episode_size']} |")
+
+	# Add storage statistics section
+	log_message("\n=== Storage Statistics ===")
+	write_markdown("\n## Storage Statistics\n")
+
+	# Calculate total disk space used
+	total_movie_size = sum(float(m['file_size'].split()[0]) * (1024 if m['file_size'].split()[1] == 'KB' else 1024**2 if m['file_size'].split()[1] == 'MB' else 1024**3 if m['file_size'].split()[1] == 'GB' else 1024**4) for m in movie_stats['movies_list'])
+	total_tv_size = sum(float(s['file_size'].split()[0]) * (1024 if s['file_size'].split()[1] == 'KB' else 1024**2 if s['file_size'].split()[1] == 'MB' else 1024**3 if s['file_size'].split()[1] == 'GB' else 1024**4) for s in tv_stats['shows_stats'])
+	total_size = total_movie_size + total_tv_size
+
+	log_message(f"Total Disk Space Used: {format_size(total_size)}")
+	write_markdown(f"- **Total Disk Space Used:** {format_size(total_size)}")
+
+	# Top 10 largest movies
+	log_message("\n=== Top 10 Largest Movies ===")
+	write_markdown("\n### Top 10 Largest Movies\n")
+	write_markdown("| Title | Year | File Size |")
+	write_markdown("|-------|------|-----------|")
+
+	# Sort movies by size (converting to bytes for comparison)
+	largest_movies = sorted(movie_stats['movies_list'], 
+		key=lambda x: float(x['file_size'].split()[0]) * (1024 if x['file_size'].split()[1] == 'KB' else 1024**2 if x['file_size'].split()[1] == 'MB' else 1024**3 if x['file_size'].split()[1] == 'GB' else 1024**4),
+		reverse=True)[:10]
+
+	for movie in largest_movies:
+		log_message(f"{movie['title']} | {movie['year']} | {movie['file_size']}")
+		write_markdown(f"| {movie['title']} | {movie['year']} | {movie['file_size']} |")
+
+	# Top 10 TV shows by average episode size
+	log_message("\n=== Top 10 TV Shows by Average Episode Size ===")
+	write_markdown("\n### Top 10 TV Shows by Average Episode Size\n")
+	write_markdown("| Title | Episodes | Average Episode Size |")
+	write_markdown("|-------|----------|---------------------|")
+
+	# Sort shows by average episode size (converting to bytes for comparison)
+	largest_shows = sorted(tv_stats['shows_stats'],
+		key=lambda x: float(x['avg_episode_size'].split()[0]) * (1024 if x['avg_episode_size'].split()[1] == 'KB' else 1024**2 if x['avg_episode_size'].split()[1] == 'MB' else 1024**3 if x['avg_episode_size'].split()[1] == 'GB' else 1024**4),
+		reverse=True)[:10]
+
+	for show in largest_shows:
+		log_message(f"{show['title']} | {show['episodes']} | {show['avg_episode_size']}")
+		write_markdown(f"| {show['title']} | {show['episodes']} | {show['avg_episode_size']} |")
 
 def run_plex_report(file_location):
 	# Initialize PLEX_GLOBALS

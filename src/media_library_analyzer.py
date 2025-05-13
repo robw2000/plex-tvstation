@@ -481,7 +481,7 @@ def run_media_library_analyzer(args, file_location):
 		summary_lines.extend(shows_with_missing_movies)
 
 	# Use a fixed filename that will be overwritten each time
-	output_file = logs_dir / "missing_episodes.md"
+	output_file = logs_dir / "missing-episodes.md"
 
 	# Write to file
 	with open(output_file, "w") as f:
