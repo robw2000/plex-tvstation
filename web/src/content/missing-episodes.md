@@ -10,6 +10,10 @@
 | 30 Rock 2006-2013                                      | Season 06 | Entire season missing                                                                    |
 | 30 Rock 2006-2013                                      | Season 07 | Entire season missing                                                                    |
 | Aeon Flux 1991-1995                                    | Season 01 | Could not get episode info: Series or season not found!                                  |
+| Aeon Flux 1991-1995                                    | Season 02 | E01 - Gravity                                                                            |
+| Aeon Flux 1991-1995                                    | Season 02 | E02 - Mirror                                                                             |
+| Aeon Flux 1991-1995                                    | Season 02 | E03 - Leisure                                                                            |
+| Aeon Flux 1991-1995                                    | Season 02 | E04 - Tide                                                                               |
 | Aeon Flux 1991-1995                                    | Season 02 | E05 - War                                                                                |
 | American Gods 2017-2021                                | Season 01 | E09 - Episode #1.9                                                                       |
 | American Gods 2017-2021                                | Season 01 | E10 - Episode #1.10                                                                      |
@@ -164,7 +168,6 @@
 | Bob's Burgers 2011-                                    | Season 15 | E09 - Dog Christmas Day After Afternoon                                                  |
 | Bob's Burgers 2011-                                    | Season 15 | E10 - Advice Things Are Ad-nice                                                          |
 | Bob's Burgers 2011-                                    | Season 15 | E11 - Mr. Fischoeder's Opus                                                              |
-| Bob's Burgers 2011-                                    | Season 15 | E12 - Like a Candle in the Gym                                                           |
 | Community 2009-2015                                    | Season 01 | E12 - Comparative Religion                                                               |
 | Cowboy Bebop 1998-1999                                 | Season 01 | E27 - Session XX: Mish-Mash Blues                                                        |
 | Dead Like Me 2003–2004                                 | Error     | Could not find show: Series not found!                                                   |
@@ -200,24 +203,12 @@
 | Modern Family 2009-2020                                | Season 10 | Entire season missing                                                                    |
 | Modern Family 2009-2020                                | Season 11 | Entire season missing                                                                    |
 | Peacemaker 2022-                                       | Season 02 | E01 - Episode #2.1                                                                       |
-| Rick and Morty 2013-                                   | Season 01 | E06 - Rick Potion #9                                                                     |
-| Rick and Morty 2013-                                   | Season 01 | E07 - Raising Gazorpazorp                                                                |
-| Rick and Morty 2013-                                   | Season 01 | E08 - Rixty Minutes                                                                      |
-| Rick and Morty 2013-                                   | Season 01 | E09 - Something Ricked This Way Comes                                                    |
-| Rick and Morty 2013-                                   | Season 01 | E10 - Close Rick-Counters of the Rick Kind                                               |
-| Rick and Morty 2013-                                   | Season 01 | E11 - Ricksy Business                                                                    |
-| Rick and Morty 2013-                                   | Season 02 | Entire season missing                                                                    |
-| Rick and Morty 2013-                                   | Season 03 | Entire season missing                                                                    |
-| Rick and Morty 2013-                                   | Season 04 | Entire season missing                                                                    |
-| Rick and Morty 2013-                                   | Season 05 | Entire season missing                                                                    |
-| Rick and Morty 2013-                                   | Season 06 | Entire season missing                                                                    |
-| Rick and Morty 2013-                                   | Season 07 | Entire season missing                                                                    |
-| Rick and Morty 2013-                                   | Season 08 | Entire season missing                                                                    |
 | Severance 2022-                                        | Season 01 | E01 - Good News About Hell                                                               |
 | Severance 2022-                                        | Season 01 | E02 - Half Loop                                                                          |
 | Severance 2022-                                        | Season 01 | E03 - In Perpetuity                                                                      |
 | Severance 2022-                                        | Season 01 | E10 - Episode #1.10                                                                      |
 | Severance 2022-                                        | Season 02 | Entire season missing                                                                    |
+| Star Trek Discovery 2017-2024                          | Season 03 | Entire season missing                                                                    |
 | Star Trek Discovery 2017-2024                          | Season 04 | Entire season missing                                                                    |
 | Star Trek Discovery 2017-2024                          | Season 05 | Entire season missing                                                                    |
 | Star Trek Strange New Worlds 2022                      | Season 03 | Entire season missing                                                                    |
@@ -318,7 +309,7 @@
 
 ### Missing Episodes
 * `30 Rock 2006-2013` - Season 1; Season 2; Season 3; Season 4; Season 5; Season 6; Season 7
-* `Aeon Flux 1991-1995` - Season 2 missing episode 5
+* `Aeon Flux 1991-1995` - Season 2
 * `American Gods 2017-2021` - Season 1 missing episodes 9, 10
 * `Archer 2009-2023` - Season 5; Season 6; Season 7; Season 8; Season 9; Season 10; Season 11; Season 12; Season 13; Season 14
 * `Battlestar Galactica 2004` - Season 2; Season 3; Season 4
@@ -331,9 +322,8 @@
 * `Kroll Show 2013-2015` - Season 2 missing episode 11
 * `Modern Family 2009-2020` - Season 4; Season 6; Season 7; Season 8; Season 9; Season 10; Season 11
 * `Peacemaker 2022-` - Season 2
-* `Rick and Morty 2013-` - Season 1 (most episodes missing); Season 2; Season 3; Season 4; Season 5; Season 6; Season 7; Season 8
 * `Severance 2022-` - Season 1 missing episodes 1, 2, 3, 10; Season 2
-* `Star Trek Discovery 2017-2024` - Season 4; Season 5
+* `Star Trek Discovery 2017-2024` - Season 3; Season 4; Season 5
 * `Star Trek Strange New Worlds 2022` - Season 3; Season 4
 * `Stargate SG-1 1997-2007` - Season 1; Season 2; Season 3; Season 4; Season 5; Season 7; Season 8; Season 9; Season 10
 * `The Good Place 2016-2020` - Season 1 missing episode 2
@@ -372,4 +362,4 @@
 * `The World's End 2013` - Empty folder
 
 ---
-Last updated: 2025-05-14 15:06:02
+Last updated: 2025-05-13 16:23:16

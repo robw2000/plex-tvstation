@@ -187,3 +187,14 @@ logs/
 
 movie_wishlist.txt
 tv_wishlist.txt
+
+# Next.js
+.next/
+out/
+build/
+.DS_Store
+*.pem
+.env*
+.vercel
+.turbo
+node_modules/

@@ -71,6 +71,14 @@ log_file = None
 local_config_file = None
 PLEX_GLOBALS = {}
 
+# Load genre mappings from file
+GENRE_MAPPINGS_PATH = '/home/rob/repos/plex-tvstation/src/genre_mappings.json'
+try:
+	with open(GENRE_MAPPINGS_PATH, 'r') as f:
+		GENRE_MAPPINGS = json.load(f)
+except Exception:
+	GENRE_MAPPINGS = {}
+
 def parse_duration_to_days(duration):
 	"""
 	Parse a duration string or integer into days.
@@ -108,7 +116,28 @@ def parse_duration_to_days(duration):
 		
 	return 365  # Default to 1 year if something goes wrong
 
-def set_plex_globals(local_config_file, log_dir, log_file, log_only):
+def clean_genre_string(genre):
+	"""
+	Cleans a genre string by:
+	1. Converting to lowercase
+	2. Removing all non-alphanumeric characters (except spaces)
+	3. Stripping leading/trailing spaces
+	4. Mapping fully spelled out genres to their short forms if present
+	"""
+	if not isinstance(genre, str):
+		return ''
+
+	def clean(g):
+		return ''.join(c.lower() if c.isalnum() or c.isspace() else '' for c in g).strip()
+
+	# Lowercase and keep only alphanumeric and spaces
+	cleaned = clean(genre)
+
+	# Map to short form if present
+	mapped = clean(GENRE_MAPPINGS.get(cleaned, cleaned))
+	return mapped
+
+def set_plex_globals(local_config_file, log_dir, log_file, log_only, genres=None):
 	"""
 	Set the PLEX_GLOBALS dictionary with values from the local_config.json file.
 	"""
@@ -137,12 +166,19 @@ def set_plex_globals(local_config_file, log_dir, log_file, log_only):
 		'tv': parse_duration_to_days(default_rewatch_delays['tv'])
 	}
 
+	# Set playlist name based on genres if provided
+	playlist_name = getenv('playlist_name', 'TV Station')
+	if genres:
+		# Convert genres to title case for display in playlist name
+		genre_list = [g.strip().title() for g in genres.split(',')]
+		playlist_name = f"{' '.join(genre_list)} TV Station"
+
 	PLEX_GLOBALS = {
 		'log_only': log_only,
 		'log_dir': log_dir,
 		'log_file': log_file,
 		'local_config_file': local_config_file,
-		'playlist_name': getenv('playlist_name', 'My Favs TV'),
+		'playlist_name': playlist_name,
 		'plex_ip': getenv('plex_ip', '192.168.1.196'),
 		'plex_port': getenv('plex_port', '32400'),
 		'plex_api_token': getenv('plex_api_token', ''),
@@ -156,6 +192,7 @@ def set_plex_globals(local_config_file, log_dir, log_file, log_only):
 		'movie_series_slugs': LOCAL_CONFIG.get('movieSeriesSlugs', []),
 		'restricted_play_months': LOCAL_CONFIG.get('restrictedPlayMonths', {}),
 		'tv_show_limit': LOCAL_CONFIG.get('tvShowLimit', 0),
+		'genres': [clean_genre_string(g.strip()) for g in genres.split(',')] if genres else None,
 
 		'base_url': None,
 		'machine_id': None,
@@ -186,7 +223,7 @@ def log_message(*args, **kwargs):
 	with open(PLEX_GLOBALS['log_file'], 'a') as f:
 		f.write(f"{message}\n")
 
-def log_cron_message(script_name, args=None):
+def log_cron_message(script_name, args=None, message=None):
 	"""
 	Log a basic message to cron.log with script name and arguments.
 	This is used for cron job logging.
@@ -195,10 +232,11 @@ def log_cron_message(script_name, args=None):
 	
 	# Only include non-None arguments that were actually passed
 	args_str = ' '.join(f"{k}={v}" for k, v in args.items() if v is not None) if args else ''
-	message = f"Running {script_name} with args: {args_str}"
-	
 	with open(cron_log, 'a') as f:
-		f.write(f"{message}\n")
+		if message:
+			f.write(f"{message}\n")
+		else:
+			f.write(f"Running {script_name} with args: {args_str}\n")
 
 def load_globals(ssn):
 	"""
@@ -410,6 +448,12 @@ def build_series_episodes(ssn):
 		if series_slug in PLEX_GLOBALS['excluded_slugs']:
 			continue
 
+		# Check if series has all required genres (AND logic)
+		if PLEX_GLOBALS['genres']:
+			series_genres = [clean_genre_string(g['tag']) for g in s.get('Genre', [])]
+			if not all(genre in series_genres for genre in PLEX_GLOBALS['genres']):
+				continue
+
 		series_key = s['ratingKey']
 		series_seasons[series_key] = ssn.get(f'{base_url}/library/metadata/{series_key}/children', params={}).json()['MediaContainer']['Metadata']
 		series_episodes[series_key] = []
@@ -610,11 +654,27 @@ def build_movie_list(ssn):
 				
 		if is_restricted:
 			continue
+
+		# Check if movie has all required genres (AND logic)
+		if PLEX_GLOBALS['genres']:
+			movie_genres = [clean_genre_string(g['tag']) for g in movie.get('Genre', [])]
+			if not all(genre in movie_genres for genre in PLEX_GLOBALS['genres']):
+				continue
 			
 		filtered_movie_list.append(movie)
 	
 	movie_list = filtered_movie_list
 	total_movies = len(movie_list)
+
+	# If no movies found after filtering, log a message and return
+	if total_movies == 0:
+		genre_list = ' '.join(PLEX_GLOBALS['genres']) if PLEX_GLOBALS['genres'] else 'all'
+		log_message(f"\nNo movies found with genre(s): {genre_list}")
+		most_recent_viewed_at = 0
+		series_keys.append({'key': 'movies', 'last_viewed_at': most_recent_viewed_at, 'slug': 'movies'})
+		series_episodes['movies'] = []
+		return
+
 	most_recent_viewed_at = 0
 
 	for movie in movie_list:
@@ -720,7 +780,7 @@ def build_playlist_episode_keys():
 
 	# Report what series were included in the playlist
 	log_message('')
-	log_message('Series included in playlist:')
+	log_message('## **Series included in playlist:**')
 	log_message('--------------------------')
 	
 	# Get unique series titles from the playlist with their percent complete and always include status
@@ -780,7 +840,7 @@ def build_playlist_episode_keys():
 	
 	# Build the playlist episode keys
 	log_message('')
-	log_message('Playlist episodes')
+	log_message('## **Playlist episodes**')
 	log_message('--------------------------')
 
 	episode_indexes = {}
@@ -799,15 +859,26 @@ def build_playlist_episode_keys():
 
 			ekey = series_episodes[series_key][next_index]['ratingKey']
 			playlist_episode_keys.append(ekey)
-			episode_indexes[series_key] = (next_index + 1) % len(series_episodes[series_key])
+			episode_indexes[series_key] = next_index + 1
 
 			episode = series_episodes[series_key][next_index]
-			log_message(f'{episode["series_title"]}: {episode["title"]}')
-	
+			log_message(f'- {episode["series_title"]}: {episode["title"]}')
+
+		all_episodes_added = True
+		for series_key in series_episodes:
+			next_index = episode_indexes.get(series_key, episode_indexes.get(series_key, 0))
+			if next_index < len(series_episodes[series_key]):
+				all_episodes_added = False
+				break
+
+		if all_episodes_added:
+			log_message("Available episodes is smaller than the max episodes")
+			break
+
 	PLEX_GLOBALS['playlist_episode_keys'] = playlist_episode_keys
 
 	# Log the total count
-	log_message(f'Total series included: {len(sorted_series)}')
+	log_message(f'\n## **Total series included: {len(sorted_series)}**\n')
 
 def get_playlist_episode(ssn):
 	"""
@@ -849,6 +920,10 @@ def replace_playlist_items(ssn):
 		# Delete existing playlist
 		response = ssn.delete(f'{base_url}/playlists/{playlist_key}')
 
+	if len(playlist_episode_keys) == 0:
+		log_message("No episodes to add to playlist -- playlist deleted")
+		return
+
 	# Create new playlist
 	response = ssn.post(f'{base_url}/playlists', params=params)
 
@@ -882,12 +957,13 @@ def rob_tv(ssn, args):
 	"""
 	# Convert to dict and filter out None values
 	args_dict = {k: v for k, v in vars(args).items() if v is not None}
-	log_cron_message(PLEX_GLOBALS['log_file'], args_dict)
 
 	# Check if any media is being watched
 	if is_media_being_watched(ssn):
-		log_message("Playlist update skipped - media is currently being watched")
+		log_cron_message(PLEX_GLOBALS['log_file'], args_dict, "Playlist update skipped - media is currently being watched")
 		return None
+	else:
+		log_cron_message(PLEX_GLOBALS['log_file'], args_dict)
 
 	# Initialize global variables
 	load_globals(ssn)
@@ -974,7 +1050,7 @@ def run_tvstation(args, file_location):
 		return
 
 	# Set PLEX_GLOBALS from local_config.json
-	set_plex_globals(local_config_file, log_dir, log_file, args.log_only)
+	set_plex_globals(local_config_file, log_dir, log_file, args.log_only, args.genres)
 
 	#setup vars
 	ssn = requests.Session()
@@ -986,8 +1062,8 @@ def run_tvstation(args, file_location):
 
 	# If the response is None, the playlist was not updated
 	if response is None:
-		log_message("Playlist not updated")
+		log_message("## **Playlist not updated**\n")
 	elif response.status_code != 200:
-		log_message("ERROR: Playlist could not be updated!")
+		log_message("## **ERROR: Playlist could not be updated!**\n")
 	elif not args.log_only:
-		log_message("Playlist updated successfully!")
+		log_message(f'## **Playlist {PLEX_GLOBALS["playlist_name"]} updated successfully!**\n')

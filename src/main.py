@@ -19,8 +19,9 @@ def main():
 	parser.add_argument('-l', '--log-only', action='store_true', help='Only write to log files, do not print to stdout')
 	parser.add_argument('-f', '--file-dir', default=Path(__file__).parent.parent.absolute(),
 		help='The base file location for logs and configuration files')
-	parser.add_argument('action', nargs='?', default='slugs',
-		help="Action to perform: 'tvstation', 'slugs', 'report', 'analyze', 'clean-logs', 'folders'")
+	parser.add_argument('-g', '--genres', default='', help='Comma-separated list of genres to filter by')
+	parser.add_argument('action', nargs='?', default='tvstation',
+		help="Action to perform: 'tvstation', 'slugs', 'report', 'analyze', 'clean', 'folders'")
 	parser.add_argument('-d', '--debug', action='store_true', help='Enable debug mode for folder creation')
 
 	args = parser.parse_args()
@@ -35,7 +36,7 @@ def main():
 		run_plex_report(file_dir)
 	elif args.action == 'analyze':
 		run_media_library_analyzer(args, file_dir)
-	elif args.action == 'clean-logs':
+	elif args.action == 'clean':
 		run_cleanup_logs(file_dir)
 	elif args.action == 'folders':
 		run_create_plex_folders(args, file_dir)
