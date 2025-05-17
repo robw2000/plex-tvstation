@@ -65,7 +65,7 @@ import hashlib
 import json
 import requests
 import re
-from utils import clean_genre_string
+from utils import clean_genres
 
 # Global variables
 log_file = None
@@ -153,6 +153,9 @@ def set_plex_globals(local_config_file, log_dir, log_file, log_only, genres=None
 		genre_list = [g.strip().title() for g in genres.split(',')]
 		playlist_name = f"{' '.join(genre_list)} TV Station"
 
+	# Clean the genres
+	cleaned_genres = clean_genres(genres)
+
 	PLEX_GLOBALS = {
 		'log_only': log_only,
 		'log_dir': log_dir,
@@ -172,7 +175,7 @@ def set_plex_globals(local_config_file, log_dir, log_file, log_only, genres=None
 		'movie_series_slugs': LOCAL_CONFIG.get('movieSeriesSlugs', []),
 		'restricted_play_months': LOCAL_CONFIG.get('restrictedPlayMonths', {}),
 		'tv_show_limit': LOCAL_CONFIG.get('tvShowLimit', 0),
-		'genres': [clean_genre_string(g.strip()) for g in genres.split(',')] if genres else None,
+		'genres': cleaned_genres,
 
 		'base_url': None,
 		'machine_id': None,
@@ -435,10 +438,10 @@ def build_series_episodes(ssn):
 		if series_slug in PLEX_GLOBALS['excluded_slugs']:
 			continue
 
-		# Check if series has all required genres (AND logic)
+		# Check if series has any required genres (OR logic)
 		if PLEX_GLOBALS['genres']:
-			series_genres = [clean_genre_string(g['tag']) for g in s.get('Genre', [])]
-			if not all(genre in series_genres for genre in PLEX_GLOBALS['genres']):
+			series_genres = clean_genres(s.get('Genre'))
+			if not any(genre in series_genres for genre in PLEX_GLOBALS['genres']):
 				continue
 
 		series_key = s['ratingKey']
@@ -642,10 +645,10 @@ def build_movie_list(ssn):
 		if is_restricted:
 			continue
 
-		# Check if movie has all required genres (AND logic)
+		# Check if movie has any required genres (OR logic)
 		if PLEX_GLOBALS['genres']:
-			movie_genres = [clean_genre_string(g['tag']) for g in movie.get('Genre', [])]
-			if not all(genre in movie_genres for genre in PLEX_GLOBALS['genres']):
+			movie_genres = clean_genres(movie.get('Genre'))
+			if not any(genre in movie_genres for genre in PLEX_GLOBALS['genres']):
 				continue
 			
 		filtered_movie_list.append(movie)
@@ -945,13 +948,6 @@ def rob_tv(ssn, args):
 	# Convert to dict and filter out None values
 	args_dict = {k: v for k, v in vars(args).items() if v is not None}
 
-	# Check if any media is being watched
-	if is_media_being_watched(ssn):
-		log_cron_message(PLEX_GLOBALS['log_file'], args_dict, "Playlist update skipped - media is currently being watched")
-		return None
-	else:
-		log_cron_message(PLEX_GLOBALS['log_file'], args_dict)
-
 	# Initialize global variables
 	load_globals(ssn)
 	
@@ -963,7 +959,14 @@ def rob_tv(ssn, args):
 	build_series_episodes(ssn)
 	build_movie_list(ssn)
 	build_playlist_episode_keys()
-	
+
+	# Check if any media is being watched
+	if is_media_being_watched(ssn):
+		log_cron_message(PLEX_GLOBALS['log_file'], args_dict, "Playlist update skipped - media is currently being watched")
+		return None
+	else:
+		log_cron_message(PLEX_GLOBALS['log_file'], args_dict)
+
 	# Update the playlist
 	return replace_playlist_items(ssn)
 

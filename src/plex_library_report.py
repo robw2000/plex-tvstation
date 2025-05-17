@@ -18,7 +18,7 @@ import time
 import requests
 
 from media_library_analyzer import PLEX_GLOBALS
-from utils import clean_genre_string
+from utils import clean_genres
 
 def initialize_plex_globals(file_location):
 	"""
@@ -172,7 +172,8 @@ def get_movie_stats(ssn):
 		# Track genres
 		movie_genres = []
 		for genre in movie.get('Genre', []):
-			genre_names = clean_genre_string(genre['tag'])
+			# Use clean_genres to process the genre
+			genre_names = clean_genres(genre)
 			for genre_name in genre_names:
 				genre_counts[genre_name] = genre_counts.get(genre_name, 0) + 1
 				movie_genres.append(genre_name)
@@ -222,7 +223,8 @@ def get_tv_stats(ssn):
 		# Track genres
 		series_genres = []
 		for genre in series_details.get('Genre', []):
-			genre_names = clean_genre_string(genre['tag'])
+			# Use clean_genres to process the genre
+			genre_names = clean_genres(genre)
 			for genre_name in genre_names:
 				genre_counts[genre_name] = genre_counts.get(genre_name, 0) + 1
 				series_genres.append(genre_name)
