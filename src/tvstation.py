@@ -65,6 +65,7 @@ import hashlib
 import json
 import requests
 import re
+from utils import clean_genre_string
 
 # Global variables
 log_file = None
@@ -115,27 +116,6 @@ def parse_duration_to_days(duration):
 		return number * 365
 		
 	return 365  # Default to 1 year if something goes wrong
-
-def clean_genre_string(genre):
-	"""
-	Cleans a genre string by:
-	1. Converting to lowercase
-	2. Removing all non-alphanumeric characters (except spaces)
-	3. Stripping leading/trailing spaces
-	4. Mapping fully spelled out genres to their short forms if present
-	"""
-	if not isinstance(genre, str):
-		return ''
-
-	def clean(g):
-		return ''.join(c.lower() if c.isalnum() or c.isspace() else '' for c in g).strip()
-
-	# Lowercase and keep only alphanumeric and spaces
-	cleaned = clean(genre)
-
-	# Map to short form if present
-	mapped = clean(GENRE_MAPPINGS.get(cleaned, cleaned))
-	return mapped
 
 def set_plex_globals(local_config_file, log_dir, log_file, log_only, genres=None):
 	"""
@@ -206,6 +186,13 @@ def set_plex_globals(local_config_file, log_dir, log_file, log_only, genres=None
 
 		'playlist_episode_keys': []
 	}
+
+	# Store the log file path in PLEX_GLOBALS immediately after creation
+	PLEX_GLOBALS['log_file'] = log_file
+
+	# Clear the log file and add creation timestamp with playlist name
+	with open(log_file, 'w') as f:
+		f.write(f"# {PLEX_GLOBALS['playlist_name']} Log\n\nCreated at {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
 def log_message(*args, **kwargs):
 	"""
@@ -1035,22 +1022,30 @@ def run_tvstation(args, file_location):
 	log_dir = file_location / 'logs'
 	log_dir.mkdir(exist_ok=True)
 
-	# Create log file with fixed name
-	log_file = log_dir / 'tv-station.md'
-	if log_file.exists():
-		os.remove(log_file)
-
-	# Clear the log file and add creation timestamp
-	with open(log_file, 'w') as f:
-		f.write(f"# TV Station Log\n\nCreated at {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-
+	# Define local_config_file before using it
 	local_config_file = file_location / 'local_config.json'
 	if not local_config_file.exists():
 		log_message("ERROR: local_config.json file not found!")
 		return
 
-	# Set PLEX_GLOBALS from local_config.json
+	# Set a default playlist name before creating the log file
+	default_playlist_name = 'tv-station'
+
+	# Create log file with default playlist name
+	log_file = log_dir / f'{default_playlist_name}.md'
+	if log_file.exists():
+		os.remove(log_file)
+
+	# Set PLEX_GLOBALS from local_config.json with the correct log_file
 	set_plex_globals(local_config_file, log_dir, log_file, args.log_only, args.genres)
+
+	# Update log file with actual playlist name using lowercase and dashes
+	log_file = log_dir / f'{PLEX_GLOBALS["playlist_name"].replace(" ", "-").lower()}.md'
+	PLEX_GLOBALS['log_file'] = log_file
+
+	# Clear the log file and add creation timestamp with playlist name
+	with open(log_file, 'w') as f:
+		f.write(f"# {PLEX_GLOBALS['playlist_name']} Log\n\nCreated at {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
 	#setup vars
 	ssn = requests.Session()

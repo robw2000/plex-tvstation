@@ -18,6 +18,7 @@ import time
 import requests
 
 from media_library_analyzer import PLEX_GLOBALS
+from utils import clean_genre_string
 
 def initialize_plex_globals(file_location):
 	"""
@@ -159,24 +160,37 @@ def get_movie_stats(ssn):
 	
 	# Create a list of all movies with their details
 	movies_list = []
+	genre_counts = {}  # Track genre counts
+	
 	for movie in movie_list:
 		# Calculate file size from disk
 		movies_path = Path(PLEX_GLOBALS['plex_folder']) / 'Movies'
 		
 		# print(f"Checking movie path {movies_path} for {movie['title']}")  # Debugging output
 		file_size = calculate_directory_size(movies_path, movie['title'], movie['year'])
+		
+		# Track genres
+		movie_genres = []
+		for genre in movie.get('Genre', []):
+			genre_names = clean_genre_string(genre['tag'])
+			for genre_name in genre_names:
+				genre_counts[genre_name] = genre_counts.get(genre_name, 0) + 1
+				movie_genres.append(genre_name)
+		
 		movies_list.append({
 			'title': movie['title'],
 			'year': movie.get('year', 'Unknown'),
 			'watched': movie.get('viewCount', 0) > 0,
-			'file_size': format_size(file_size)
+			'file_size': format_size(file_size),
+			'genres': movie_genres
 		})
 	
 	return {
 		'total': total_movies,
 		'watched': watched_movies,
 		'unwatched': unwatched_movies,
-		'movies_list': sorted(movies_list, key=lambda x: (x['year'], x['title']))
+		'movies_list': sorted(movies_list, key=lambda x: (x['year'], x['title'])),
+		'genre_counts': genre_counts
 	}
 
 def get_tv_stats(ssn):
@@ -197,8 +211,22 @@ def get_tv_stats(ssn):
 	
 	# Get detailed stats for each show
 	shows_stats = []
+	genre_counts = {}  # Track genre counts
+	
 	for series in series_list:
 		series_key = series['ratingKey']
+		
+		# Get detailed series info including genres
+		series_details = ssn.get(f'{base_url}/library/metadata/{series_key}', params={}).json()['MediaContainer']['Metadata'][0]
+		
+		# Track genres
+		series_genres = []
+		for genre in series_details.get('Genre', []):
+			genre_names = clean_genre_string(genre['tag'])
+			for genre_name in genre_names:
+				genre_counts[genre_name] = genre_counts.get(genre_name, 0) + 1
+				series_genres.append(genre_name)
+		
 		seasons = ssn.get(f'{base_url}/library/metadata/{series_key}/children', params={}).json()['MediaContainer']['Metadata']
 		
 		show_episodes = 0
@@ -230,7 +258,8 @@ def get_tv_stats(ssn):
 			'watched': show_watched,
 			'percent_watched': (show_watched / show_episodes * 100) if show_episodes > 0 else 0,
 			'file_size': format_size(show_size),
-			'avg_episode_size': format_size(avg_episode_size)
+			'avg_episode_size': format_size(avg_episode_size),
+			'genres': series_genres  # Add cleaned genres to show stats
 		})
 	
 	return {
@@ -238,7 +267,8 @@ def get_tv_stats(ssn):
 		'total_episodes': total_episodes,
 		'watched_episodes': watched_episodes,
 		'unwatched_episodes': total_episodes - watched_episodes,
-		'shows_stats': shows_stats
+		'shows_stats': shows_stats,
+		'genre_counts': genre_counts
 	}
 
 def format_size(size_bytes):
@@ -279,17 +309,18 @@ def generate_report(ssn):
 	log_message("=== Movie List ===")
 	write_markdown("### Movie List\n")
 	
-	log_message("Title | Year | Watched | File Size")
+	log_message("Title | Year | Watched | File Size | Genres")
 	log_message("----------------------------------------")
-	write_markdown("| Title | Year | Watched | File Size |")
-	write_markdown("|-------|------|---------|-----------|")
+	write_markdown("| Title | Year | Watched | File Size | Genres |")
+	write_markdown("|-------|------|---------|-----------|--------|")
 	
 	movie_stats['movies_list'].sort(key=lambda x: re.sub(r'\b(the|a|an|and|or|but|in|on|at|to|for|of)\b', '', x['title'].lower()))
 	
 	for movie in movie_stats['movies_list']:
 		watched_status = "Yes" if movie['watched'] else "No"
-		log_message(f"{movie['title']} | {movie['year']} | {watched_status} | {movie['file_size']}")
-		write_markdown(f"| {movie['title']} | {movie['year']} | {watched_status} | {movie['file_size']} |")
+		genres_str = ", ".join(movie['genres']) if movie['genres'] else "None"
+		log_message(f"{movie['title']} | {movie['year']} | {watched_status} | {movie['file_size']} | {genres_str}")
+		write_markdown(f"| {movie['title']} | {movie['year']} | {watched_status} | {movie['file_size']} | {genres_str} |")
 	
 	# Get TV show statistics
 	tv_stats = get_tv_stats(ssn)
@@ -312,16 +343,17 @@ def generate_report(ssn):
 	log_message("=== TV Show Details ===")
 	write_markdown("### TV Show Details\n")
 	
-	log_message("Title | Episodes | Watched | % Watched | Total Size | Avg Episode Size")
+	log_message("Title | Episodes | Watched | % Watched | Total Size | Avg Episode Size | Genres")
 	log_message("----------------------------------------")
-	write_markdown("| Title | Episodes | Watched | % Watched | Total Size | Avg Episode Size |")
-	write_markdown("|-------|----------|---------|-----------|------------|-----------------|")
+	write_markdown("| Title | Episodes | Watched | % Watched | Total Size | Avg Episode Size | Genres |")
+	write_markdown("|-------|----------|---------|-----------|------------|-----------------|--------|")
 	
 	tv_stats['shows_stats'].sort(key=lambda x: re.sub(r'\b(the|a|an|and|or|but|in|on|at|to|for|of)\b', '', x['title'].lower()))
 	
 	for show in sorted(tv_stats['shows_stats'], key=lambda x: x['title']):
-		log_message(f"{show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}% | {show['file_size']} | {show['avg_episode_size']}")
-		write_markdown(f"| {show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}% | {show['file_size']} | {show['avg_episode_size']} |")
+		genres_str = ", ".join(show['genres']) if show['genres'] else "None"
+		log_message(f"{show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}% | {show['file_size']} | {show['avg_episode_size']} | {genres_str}")
+		write_markdown(f"| {show['title']} | {show['episodes']} | {show['watched']} | {show['percent_watched']:.1f}% | {show['file_size']} | {show['avg_episode_size']} | {genres_str} |")
 
 	# Add storage statistics section
 	log_message("\n=== Storage Statistics ===")
@@ -364,6 +396,27 @@ def generate_report(ssn):
 	for show in largest_shows:
 		log_message(f"{show['title']} | {show['episodes']} | {show['avg_episode_size']}")
 		write_markdown(f"| {show['title']} | {show['episodes']} | {show['avg_episode_size']} |")
+
+	# Add combined genre statistics section
+	log_message("\n=== Combined Genre Statistics ===")
+	write_markdown("\n## Combined Genre Statistics\n")
+
+	# Combine movie and TV show genres
+	combined_genre_counts = {}
+	for genre, count in movie_stats['genre_counts'].items():
+		combined_genre_counts[genre] = combined_genre_counts.get(genre, 0) + count
+	for genre, count in tv_stats['genre_counts'].items():
+		combined_genre_counts[genre] = combined_genre_counts.get(genre, 0) + count
+
+	# Sort genres by count
+	sorted_genres = sorted(combined_genre_counts.items(), key=lambda x: x[1], reverse=True)
+
+	# Write combined genre statistics
+	write_markdown("| Genre | Count |")
+	write_markdown("|-------|-------|")
+	for genre, count in sorted_genres:
+		log_message(f"{genre}: {count}")
+		write_markdown(f"| {genre} | {count} |")
 
 def run_plex_report(file_location):
 	# Initialize PLEX_GLOBALS

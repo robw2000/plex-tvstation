@@ -17,17 +17,8 @@ python3 src/main.py tvstation -g animation $1
 # Sci-Fi tv station
 python3 src/main.py tvstation -g sci-fi $1
 
-# Horror Comedy tv station
-python3 src/main.py tvstation -g horror,comedy $1
-
-# Mystery Comedy tv station
-python3 src/main.py tvstation -g mystery,comedy $1
-
-# Sci-Fi Comedy tv station
-python3 src/main.py tvstation -g sci-fi,comedy $1
-
-# Animation Comedy tv station
-python3 src/main.py tvstation -g animation,comedy $1
+# Fantasy tv station
+python3 src/main.py tvstation -g fantasy $1
 
 # All media library analyzer
 python3 src/main.py analyze $1
