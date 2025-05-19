@@ -18,7 +18,7 @@ import time
 import requests
 
 from media_library_analyzer import PLEX_GLOBALS
-from utils import clean_genres
+from utils import build_genres_set
 
 def initialize_plex_globals(file_location):
 	"""
@@ -119,7 +119,7 @@ def get_section_keys(ssn):
 
 def calculate_directory_size(directory, title=None, year=None):
 	total_size = 0
-	# print(f"Calculating size for directory: {directory}")  # Debugging output
+
 	for dirpath, dirnames, filenames in walk(directory):
 		for d in dirnames:
 			if '/Movies' in str(directory) and title is not None and year is not None and d.startswith(title) and d.endswith(str(year)):
@@ -168,15 +168,12 @@ def get_movie_stats(ssn):
 		
 		# print(f"Checking movie path {movies_path} for {movie['title']}")  # Debugging output
 		file_size = calculate_directory_size(movies_path, movie['title'], movie['year'])
-		
+
 		# Track genres
 		movie_genres = []
-		for genre in movie.get('Genre', []):
-			# Use clean_genres to process the genre
-			genre_names = clean_genres(genre)
-			for genre_name in genre_names:
-				genre_counts[genre_name] = genre_counts.get(genre_name, 0) + 1
-				movie_genres.append(genre_name)
+		for genre_name in build_genres_set(movie.get('Genre', [])):
+			genre_counts[genre_name] = genre_counts.get(genre_name, 0) + 1
+			movie_genres.append(genre_name)
 		
 		movies_list.append({
 			'title': movie['title'],
@@ -222,12 +219,9 @@ def get_tv_stats(ssn):
 		
 		# Track genres
 		series_genres = []
-		for genre in series_details.get('Genre', []):
-			# Use clean_genres to process the genre
-			genre_names = clean_genres(genre)
-			for genre_name in genre_names:
-				genre_counts[genre_name] = genre_counts.get(genre_name, 0) + 1
-				series_genres.append(genre_name)
+		for genre_name in build_genres_set(series_details.get('Genre', [])):
+			genre_counts[genre_name] = genre_counts.get(genre_name, 0) + 1
+			series_genres.append(genre_name)
 		
 		seasons = ssn.get(f'{base_url}/library/metadata/{series_key}/children', params={}).json()['MediaContainer']['Metadata']
 		
@@ -245,7 +239,6 @@ def get_tv_stats(ssn):
 			# Calculate file size from disk for each episode
 			for episode in episodes:
 				tv_show_path = Path(PLEX_GLOBALS['plex_folder']) / 'TV Shows'
-				print(f"Checking episode path {tv_show_path} for {series['title']} and {episode['title']}")  # Debugging output
 				show_size += calculate_directory_size(tv_show_path, series['title'])
 		
 		total_episodes += show_episodes

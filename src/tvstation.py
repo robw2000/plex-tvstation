@@ -65,7 +65,7 @@ import hashlib
 import json
 import requests
 import re
-from utils import clean_genres
+from utils import build_genres_set, get_nested_json_value
 
 # Global variables
 log_file = None
@@ -117,7 +117,7 @@ def parse_duration_to_days(duration):
 		
 	return 365  # Default to 1 year if something goes wrong
 
-def set_plex_globals(local_config_file, log_dir, log_file, log_only, genres=None):
+def set_plex_globals(args, local_config_file, log_dir):
 	"""
 	Set the PLEX_GLOBALS dictionary with values from the local_config.json file.
 	"""
@@ -134,6 +134,7 @@ def set_plex_globals(local_config_file, log_dir, log_file, log_only, genres=None
 				"tv": "90 days"
 			},
 			"excluded_slugs": [],
+			"franchises": [],
 			"metadata": [],
 			"movie_series_slugs": [],
 			"restricted_play_months": {}
@@ -146,20 +147,35 @@ def set_plex_globals(local_config_file, log_dir, log_file, log_only, genres=None
 		'tv': parse_duration_to_days(default_rewatch_delays['tv'])
 	}
 
-	# Set playlist name based on genres if provided
+	# Set the base playlist name based on env var or default
 	playlist_name = getenv('playlist_name', 'TV Station')
-	if genres:
-		# Convert genres to title case for display in playlist name
-		genre_list = [g.strip().title() for g in genres.split(',')]
-		playlist_name = f"{' '.join(genre_list)} TV Station"
+	
+	# Clean and process genre and franchise
+	genre_set = build_genres_set(args.genre)
+	genre = genre_set.pop() if genre_set else None
+	
+	franchise = None
+	if args.franchise:
+		franchise = create_slug(args.franchise)
+	
+	known_franchises = [create_slug(f) for f in LOCAL_CONFIG.get('franchises', [])]
 
-	# Clean the genres
-	cleaned_genres = clean_genres(genres)
+	# If franchise is set, use it for the playlist name and ignore genre
+	if franchise:
+		playlist_name = f"{franchise.replace('-', ' ').title()} TV Station"
+	elif genre:
+		# Convert genre to title case for display in playlist name
+		playlist_name = f"{genre.replace('-', ' ').title()} TV Station"
 
+	# Log file name
+	log_file_name = f'{playlist_name.replace(" ", "-").lower()}.md'
+
+	# Initialize PLEX_GLOBALS dictionary
 	PLEX_GLOBALS = {
-		'log_only': log_only,
+		'log_only': args.log_only,
 		'log_dir': log_dir,
-		'log_file': log_file,
+		'log_file_name': log_file_name,
+		'log_file': log_dir / log_file_name,
 		'local_config_file': local_config_file,
 		'playlist_name': playlist_name,
 		'plex_ip': getenv('plex_ip', '192.168.1.196'),
@@ -175,7 +191,9 @@ def set_plex_globals(local_config_file, log_dir, log_file, log_only, genres=None
 		'movie_series_slugs': LOCAL_CONFIG.get('movieSeriesSlugs', []),
 		'restricted_play_months': LOCAL_CONFIG.get('restrictedPlayMonths', {}),
 		'tv_show_limit': LOCAL_CONFIG.get('tvShowLimit', 0),
-		'genres': cleaned_genres,
+		'genre': genre if not franchise else None,
+		'franchise': franchise,
+		'known_franchises': known_franchises,
 
 		'base_url': None,
 		'machine_id': None,
@@ -189,13 +207,6 @@ def set_plex_globals(local_config_file, log_dir, log_file, log_only, genres=None
 
 		'playlist_episode_keys': []
 	}
-
-	# Store the log file path in PLEX_GLOBALS immediately after creation
-	PLEX_GLOBALS['log_file'] = log_file
-
-	# Clear the log file and add creation timestamp with playlist name
-	with open(log_file, 'w') as f:
-		f.write(f"# {PLEX_GLOBALS['playlist_name']} Log\n\nCreated at {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
 def log_message(*args, **kwargs):
 	"""
@@ -272,9 +283,9 @@ def get_playlist_key(ssn):
 
 	params = {'playlistType': 'video', 'includeCollections': '1'}
 	if playlist_key is not None:
-		playlists = ssn.get(f'{base_url}/playlists/{playlist_key}', params=params).json()['MediaContainer']['Metadata']
+		playlists = get_nested_json_value(ssn.get(f'{base_url}/playlists/{playlist_key}', params=params), ['MediaContainer', 'Metadata'], [])
 	else:
-		playlists = ssn.get(f'{base_url}/playlists', params={'playlistType': 'video', 'includeCollections': '1'}).json()['MediaContainer']['Metadata']
+		playlists = get_nested_json_value(ssn.get(f'{base_url}/playlists', params={'playlistType': 'video', 'includeCollections': '1'}), ['MediaContainer', 'Metadata'], [])
 
 	for pl in playlists:
 		if pl['title'] == playlist_name:
@@ -358,8 +369,11 @@ def create_slug(title):
 	Creates a slug from a title by converting to lowercase, replacing spaces with dashes,
 	and removing any characters that are not letters or dashes.
 	"""
-	slug = ''.join(c.lower() if c.isalnum() or c == ' ' else '' for c in title)
-	return '-'.join(slug.split())
+	if title is None:
+		return None
+	
+	slug = re.sub(r'[^a-z0-9\s-]', '', title.lower()).strip()
+	return slug
 
 def get_movie_year_from_imdb(movie_title):
 	"""
@@ -433,16 +447,25 @@ def build_series_episodes(ssn):
 	series_list = sorted(series_list, key=lambda x: hashlib.md5(x['title'].encode()).hexdigest())
 
 	# Get all series and their seasons
+	total_series = 0
 	for s in series_list:
 		series_slug = s.get('slug', create_slug(s['title']))
 		if series_slug in PLEX_GLOBALS['excluded_slugs']:
 			continue
 
-		# Check if series has any required genres (OR logic)
-		if PLEX_GLOBALS['genres']:
-			series_genres = clean_genres(s.get('Genre'))
-			if not any(genre in series_genres for genre in PLEX_GLOBALS['genres']):
+		# Get the genres for the series
+		series_genres = build_genres_set(s.get('Genre'))
+
+		# Check if series has the requested franchise or genre
+		if PLEX_GLOBALS['franchise']:
+			# If franchise is set, check if this series belongs to that franchise
+			franchise = determine_franchise(series_slug)
+			if franchise != PLEX_GLOBALS['franchise']:
 				continue
+		elif PLEX_GLOBALS['genre'] and PLEX_GLOBALS['genre'] not in series_genres:
+			continue
+		
+		total_series += 1
 
 		series_key = s['ratingKey']
 		series_seasons[series_key] = ssn.get(f'{base_url}/library/metadata/{series_key}/children', params={}).json()['MediaContainer']['Metadata']
@@ -505,6 +528,18 @@ def build_series_episodes(ssn):
 		if start_index > 0 and series_episodes.get(series_key) is not None:
 			series_episodes[series_key] = series_episodes[series_key][start_index:]
 	
+		# If no movies found after filtering, log a message and return
+	
+	if total_series == 0:
+		if PLEX_GLOBALS['franchise']:
+			log_message(f"\nNo series found in franchise: {PLEX_GLOBALS['franchise']}")
+		elif PLEX_GLOBALS['genre']:
+			log_message(f"\nNo series found with genre: {PLEX_GLOBALS['genre']}")
+		else:
+			log_message("\nNo series found")
+		
+		return
+
 	# Apply TV show limit if enabled
 	if tv_show_limit > 0:
 		# Create a list to store series with their percent_complete values
@@ -645,12 +680,18 @@ def build_movie_list(ssn):
 		if is_restricted:
 			continue
 
-		# Check if movie has any required genres (OR logic)
-		if PLEX_GLOBALS['genres']:
-			movie_genres = clean_genres(movie.get('Genre'))
-			if not any(genre in movie_genres for genre in PLEX_GLOBALS['genres']):
+		# Get the genres for the series
+		movie_genres = build_genres_set(movie.get('Genre'))
+
+		# Check if movie has the requested franchise or genre
+		if PLEX_GLOBALS['franchise']:
+			# If franchise is set, check if this movie belongs to that franchise
+			franchise = determine_franchise(movie_slug)
+			if franchise != PLEX_GLOBALS['franchise']:
 				continue
-			
+		elif PLEX_GLOBALS['genre'] and PLEX_GLOBALS['genre'] not in movie_genres:
+			continue
+
 		filtered_movie_list.append(movie)
 	
 	movie_list = filtered_movie_list
@@ -658,8 +699,13 @@ def build_movie_list(ssn):
 
 	# If no movies found after filtering, log a message and return
 	if total_movies == 0:
-		genre_list = ' '.join(PLEX_GLOBALS['genres']) if PLEX_GLOBALS['genres'] else 'all'
-		log_message(f"\nNo movies found with genre(s): {genre_list}")
+		if PLEX_GLOBALS['franchise']:
+			log_message(f"\nNo movies found in franchise: {PLEX_GLOBALS['franchise']}")
+		elif PLEX_GLOBALS['genre']:
+			log_message(f"\nNo movies found with genre: {PLEX_GLOBALS['genre']}")
+		else:
+			log_message("\nNo movies found")
+		
 		most_recent_viewed_at = 0
 		series_keys.append({'key': 'movies', 'last_viewed_at': most_recent_viewed_at, 'slug': 'movies'})
 		series_episodes['movies'] = []
@@ -879,9 +925,9 @@ def get_playlist_episode(ssn):
 
 	params = {'playlistType': 'video', 'includeCollections': '1'}
 	if playlist_key is not None:
-		playlists = ssn.get(f'{base_url}/playlists/{playlist_key}', params=params).json()['MediaContainer']['Metadata']
+		playlists = get_nested_json_value(ssn.get(f'{base_url}/playlists/{playlist_key}', params=params), ['MediaContainer', 'Metadata'])
 	else:
-		playlists = ssn.get(f'{base_url}/playlists', params={'playlistType': 'video', 'includeCollections': '1'}).json()['MediaContainer']['Metadata']
+		playlists = get_nested_json_value(ssn.get(f'{base_url}/playlists', params={'playlistType': 'video', 'includeCollections': '1'}), ['MediaContainer', 'Metadata'])
 
 	for pl in playlists:
 		if pl['title'] == playlist_name:
@@ -892,7 +938,7 @@ def get_playlist_episode(ssn):
 		return []
 
 	# Get all items in the playlist
-	items = ssn.get(f'{base_url}/playlists/{playlist_key}/items', params=params).json()['MediaContainer']['Metadata']
+	items = get_nested_json_value(ssn.get(f'{base_url}/playlists/{playlist_key}/items', params=params), ['MediaContainer', 'Metadata'])
 
 	return items
 
@@ -941,10 +987,78 @@ def is_media_being_watched(ssn):
 		log_message(f"Error checking for active sessions: {e}")
 		return False
 
-def rob_tv(ssn, args):
+def reset_watched_status(ssn):
 	"""
-	Main function to update the playlist.
+	Resets the watched status for all media items, or those filtered by franchise/genre.
 	"""
+	base_url = get_base_url()
+	movie_section_key, tv_section_key = get_section_keys(ssn)
+	
+	# Reset movies
+	movie_results = ssn.get(f'{base_url}/library/sections/{movie_section_key}/all', params={})
+	movie_results.raise_for_status()
+	movie_list = movie_results.json()['MediaContainer']['Metadata']
+	
+	# Reset TV shows
+	tv_results = ssn.get(f'{base_url}/library/sections/{tv_section_key}/all', params={})
+	tv_results.raise_for_status()
+	tv_list = tv_results.json()['MediaContainer']['Metadata']
+	
+	# Process movies
+	for movie in movie_list:
+		movie_slug = movie.get('slug', create_slug(movie['title']))
+		
+		# Skip if movie is in excluded slugs
+		if movie_slug in PLEX_GLOBALS['excluded_slugs']:
+			continue
+			
+		# Check if movie has the requested franchise or genre
+		if PLEX_GLOBALS['franchise']:
+			franchise = determine_franchise(movie_slug)
+			if franchise != PLEX_GLOBALS['franchise']:
+				continue
+		elif PLEX_GLOBALS['genre']:
+			movie_genres = build_genres_set(movie.get('Genre'))
+			if PLEX_GLOBALS['genre'] not in movie_genres:
+				continue
+		
+		# Reset watched status
+		if movie.get('viewCount', 0) > 0:
+			log_message(f"Resetting watched status for movie: {movie['title']}")
+			mark_as_unwatched(ssn, movie['ratingKey'])
+	
+	# Process TV shows
+	for show in tv_list:
+		show_slug = show.get('slug', create_slug(show['title']))
+		
+		# Skip if show is in excluded slugs
+		if show_slug in PLEX_GLOBALS['excluded_slugs']:
+			continue
+			
+		# Check if show has the requested franchise or genre
+		if PLEX_GLOBALS['franchise']:
+			franchise = determine_franchise(show_slug)
+			if franchise != PLEX_GLOBALS['franchise']:
+				continue
+		elif PLEX_GLOBALS['genre']:
+			show_genres = build_genres_set(show.get('Genre'))
+			if PLEX_GLOBALS['genre'] not in show_genres:
+				continue
+		
+		# Get all episodes for this show
+		show_key = show['ratingKey']
+		seasons = ssn.get(f'{base_url}/library/metadata/{show_key}/children', params={}).json()['MediaContainer']['Metadata']
+		
+		for season in seasons:
+			season_key = season['ratingKey']
+			episodes = ssn.get(f'{base_url}/library/metadata/{season_key}/children', params={}).json()['MediaContainer']['Metadata']
+			
+			for episode in episodes:
+				if episode.get('viewCount', 0) > 0:
+					log_message(f"Resetting watched status for episode: {show['title']} - {season['title']} Episode {episode['index']}")
+					mark_as_unwatched(ssn, episode['ratingKey'])
+
+def my_tv_station(ssn, args):
 	# Convert to dict and filter out None values
 	args_dict = {k: v for k, v in vars(args).items() if v is not None}
 
@@ -954,6 +1068,14 @@ def rob_tv(ssn, args):
 	# Get series and playlist information
 	get_series_globals()
 	get_playlist_globals()
+	
+	# If reset flag is set, reset watched status and return
+	if args.reset:
+		log_message("## **Resetting watched status**")
+		log_message("--------------------------")
+		reset_watched_status(ssn)
+		log_message("\n## **Reset complete**\n")
+		return None
 	
 	# Build the playlist
 	build_series_episodes(ssn)
@@ -1017,6 +1139,24 @@ def filter_common_words(slug):
 	"""
 	return list(filter(lambda x: x != 'the' and x != 'a' and x != 'an', slug.split('-')))
 
+def determine_franchise(media_slug):
+	"""
+	Determine the franchise of a media item based on its slug.
+	"""
+	media_metadata = next((item for item in PLEX_GLOBALS['metadata'] if item['slug'] == media_slug), None)
+	if media_metadata and 'franchise' in media_metadata:
+		return create_slug(media_metadata['franchise'])
+	
+	for f in PLEX_GLOBALS['known_franchises']:
+		# if the franchise appears at the beginning of the slug with a dash afterwards,
+		# the end of the slug with a dash before it,
+		# or in the middle of the slug with dashes before and after it,
+		# then return the franchise slug
+		if media_slug.startswith(f'{f}-') or f'-{f}-' in media_slug or media_slug.endswith(f'-{f}'):
+			return create_slug(f)
+	
+	return None
+
 # ------------------------------------------
 # Main
 # ------------------------------------------
@@ -1031,23 +1171,15 @@ def run_tvstation(args, file_location):
 		log_message("ERROR: local_config.json file not found!")
 		return
 
-	# Set a default playlist name before creating the log file
-	default_playlist_name = 'tv-station'
-
-	# Create log file with default playlist name
-	log_file = log_dir / f'{default_playlist_name}.md'
-	if log_file.exists():
-		os.remove(log_file)
-
 	# Set PLEX_GLOBALS from local_config.json with the correct log_file
-	set_plex_globals(local_config_file, log_dir, log_file, args.log_only, args.genres)
+	set_plex_globals(args, local_config_file, log_dir)
 
-	# Update log file with actual playlist name using lowercase and dashes
-	log_file = log_dir / f'{PLEX_GLOBALS["playlist_name"].replace(" ", "-").lower()}.md'
-	PLEX_GLOBALS['log_file'] = log_file
-
+	# Delete the existing log file
+	if os.path.exists(PLEX_GLOBALS['log_file']):
+		os.remove(PLEX_GLOBALS['log_file'])
+		
 	# Clear the log file and add creation timestamp with playlist name
-	with open(log_file, 'w') as f:
+	with open(PLEX_GLOBALS['log_file'], 'w') as f:
 		f.write(f"# {PLEX_GLOBALS['playlist_name']} Log\n\nCreated at {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
 	#setup vars
@@ -1056,7 +1188,7 @@ def run_tvstation(args, file_location):
 	ssn.params.update({'X-Plex-Token': PLEX_GLOBALS['plex_api_token']})
 
 	#call function and process result
-	response = rob_tv(ssn=ssn, args=args)
+	response = my_tv_station(ssn=ssn, args=args)
 
 	# If the response is None, the playlist was not updated
 	if response is None:

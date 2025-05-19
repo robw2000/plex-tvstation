@@ -9,39 +9,54 @@ try:
 except Exception:
 	GENRE_MAPPINGS = {}
 
+def clean_genre_string(genres):
+	genre_string = None
+	if isinstance(genres, str):
+		genre_string = genres
 
-def clean_genres(genre):
+	elif isinstance(genres, list):
+		# If the list contains objects with a 'tag' field, extract the 'tag' values
+
+		if all(isinstance(g, dict) and 'tag' in g for g in genres):
+			genre_string = ','.join([g['tag'] for g in genres])
+
+		# If the list contains strings, join them with commas
+		elif all(isinstance(g, str) for g in genres):
+			genre_string = ','.join(genres)
+	
+	# Replace 'and' or '&' with a comma
+	genre_string = re.sub(r'\s*(?:and|&)\s*', ',', genre_string)
+
+	# Remove non-alphanumeric characters except spaces and commas
+	return ''.join(c.lower() if c.isalnum() or c in ' ,-' else '' for c in genre_string).strip()
+
+
+def build_genres_set(genres):
 	"""
 	Cleans a genre input which can be a string, list of strings, or None.
-	1. If None, returns an empty list.
+	1. If None, returns an empty set.
 	2. If a string, processes it by replacing 'and' or '&' with a comma, removing non-alphanumeric characters (except spaces and commas), and splitting by commas.
 	3. If a list of strings, processes each string individually.
 	4. Maps fully spelled out genres to their short forms if present.
 	"""
-	if genre is None:
-		return []
+	if genres is None:
+		return set()
 
-	def clean(g):
-		# Replace 'and' or '&' with a comma
-		g = re.sub(r'\s*(?:and|&)\s*', ',', g)
-		# Remove non-alphanumeric characters except spaces and commas
-		return ''.join(c.lower() if c.isalnum() or c.isspace() or c == ',' else '' for c in g).strip()
 
-	if isinstance(genre, str):
-		# Clean the genre string
-		cleaned_genre = clean(genre)
-		# Split by commas
-		parts = cleaned_genre.split(',')
-	elif isinstance(genre, list):
-		# If the list contains objects with a 'tag' field, extract the 'tag' values
-		if all(isinstance(g, dict) and 'tag' in g for g in genre):
-			parts = [clean(g['tag']) for g in genre]
-		else:
-			# Clean each genre in the list
-			parts = [clean(g) for g in genre]
-	else:
-		return []
+	# get cleaned comma separated genres
+	genre_string = clean_genre_string(genres)
 
-	# Map to short form if present and clean each part
-	mapped_parts = [clean(GENRE_MAPPINGS.get(part.strip(), part.strip())) for part in parts]
+	# map genres to consistent short forms
+	mapped_parts = {GENRE_MAPPINGS.get(part.strip(), part.strip()) for part in genre_string.split(',')}
+
+	# remove empty strings
+	mapped_parts = {part for part in mapped_parts if part is not None and part != ''}
+
+	# return as a set
 	return mapped_parts
+
+def get_nested_json_value(response, keys, default={}):
+	json_data = response.json()
+	for key in keys:
+		json_data = json_data.get(key, {})
+	return json_data if json_data else default

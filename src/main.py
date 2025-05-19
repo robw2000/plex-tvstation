@@ -17,9 +17,11 @@ load_dotenv()
 def main():
 	parser = argparse.ArgumentParser(description='Plex TV Station Application')
 	parser.add_argument('-l', '--log-only', action='store_true', help='Only write to log files, do not print to stdout')
-	parser.add_argument('-f', '--file-dir', default=Path(__file__).parent.parent.absolute(),
+	parser.add_argument('-fd', '--file-dir', default=Path(__file__).parent.parent.absolute(),
 		help='The base file location for logs and configuration files')
-	parser.add_argument('-g', '--genres', default='comedy,Science Fiction & Fantasy', help='Comma-separated list of genres to filter by')
+	parser.add_argument('-g', '--genre',  help='Genre to filter by (e.g., comedy, action, drama)')
+	parser.add_argument('-f', '--franchise', default='', help='Franchise to filter by (e.g., star-wars, marvel)')
+	parser.add_argument('-r', '--reset', action='store_true', help='Reset watched status for all media (or filtered by franchise/genre)')
 	parser.add_argument('action', nargs='?', default='tvstation',
 		help="Action to perform: 'tvstation', 'slugs', 'report', 'analyze', 'clean', 'folders'")
 	parser.add_argument('-d', '--debug', action='store_true', help='Enable debug mode for folder creation')

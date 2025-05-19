@@ -20,12 +20,28 @@ python3 src/main.py tvstation -g sci-fi $1
 # Fantasy tv station
 python3 src/main.py tvstation -g fantasy $1
 
-# All media library analyzer
-python3 src/main.py analyze $1
+# Franchise tv stations
 
-# Missing episodes
-python3 src/main.py report $1
+# Star Wars tv station
+python3 src/main.py tvstation -f star-wars $1
 
-# Missing episodes
-python3 src/main.py clean $1
+# Star Trek tv station
+python3 src/main.py tvstation -f star-trek $1
+
+# Marvel tv station
+python3 src/main.py tvstation -f marvel $1
+
+# DC tv station
+python3 src/main.py tvstation -f dc $1
+
+
+
+# # All media library analyzer
+# python3 src/main.py analyze $1
+
+# # Missing episodes
+# python3 src/main.py report $1
+
+# # Missing episodes
+# python3 src/main.py clean $1
 
