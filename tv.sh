@@ -35,13 +35,3 @@ python3 src/main.py tvstation -f marvel $1
 python3 src/main.py tvstation -f dc $1
 
 
-
-# # All media library analyzer
-# python3 src/main.py analyze $1
-
-# # Missing episodes
-# python3 src/main.py report $1
-
-# # Missing episodes
-# python3 src/main.py clean $1
-

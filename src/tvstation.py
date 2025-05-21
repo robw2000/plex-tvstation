@@ -188,7 +188,6 @@ def set_plex_globals(args, local_config_file, log_dir):
 		'omdb_api_url': getenv('omdb_api_url', 'http://www.omdbapi.com/'),
 		'defaultRewatchDelayDays': default_rewatch_delays_days,
 		'metadata': LOCAL_CONFIG.get('metadata', []),
-		'movie_series_slugs': LOCAL_CONFIG.get('movieSeriesSlugs', []),
 		'restricted_play_months': LOCAL_CONFIG.get('restrictedPlayMonths', {}),
 		'tv_show_limit': LOCAL_CONFIG.get('tvShowLimit', 0),
 		'genre': genre if not franchise else None,
@@ -231,13 +230,16 @@ def log_cron_message(script_name, args=None, message=None):
 	"""
 	cron_log = PLEX_GLOBALS['log_dir'] / 'cron.log'
 	
+	# Get current timestamp
+	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+	
 	# Only include non-None arguments that were actually passed
 	args_str = ' '.join(f"{k}={v}" for k, v in args.items() if v is not None) if args else ''
 	with open(cron_log, 'a') as f:
 		if message:
-			f.write(f"{message}\n")
+			f.write(f"[{timestamp}] {message}\n")
 		else:
-			f.write(f"Running {script_name} with args: {args_str}\n")
+			f.write(f"[{timestamp}] Running {script_name} with args: {args_str}\n")
 
 def load_globals(ssn):
 	"""
@@ -766,12 +768,14 @@ def build_movie_list(ssn):
 		# Check if the movie slug starts with any of the movie series slugs from PLEX_GLOBALS
 		movie['key_word'] = key_word_parts[0]  # Default to first word
 		
-		for series_slug in PLEX_GLOBALS['movie_series_slugs']:
-			series_slug_parts = filter_common_words(series_slug)
-			trimmed_series_slug = '-'.join(series_slug_parts)
-			if trimmed_series_slug in movie_slug:
-				movie['key_word'] = series_slug
-				break
+
+		franchise_slug = determine_franchise(movie_slug)
+		if franchise_slug:
+			movie['franchise'] = franchise_slug
+			movie['key_word'] = franchise_slug
+		else:
+			movie_slug_parts = filter_common_words(movie_slug)
+			movie['key_word'] = movie_slug_parts[0]
 
 	# Sort the movies by a hash of the title which will randomize the sort but also ensure the sort is the same each time
 	unwatched_movies = list(filter(lambda x: not x['isWatched'], movie_list))
