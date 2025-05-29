@@ -57,9 +57,10 @@ Setup:
 
 	Run the script at an interval to regularly update the playlist.
 """
-from html import parser
-from os import getenv, path, makedirs
+import copy
+from os import getenv
 import os
+import random
 import time
 import hashlib
 import json
@@ -207,17 +208,18 @@ def set_plex_globals(args, local_config_file, log_dir):
 		'playlist_episode_keys': []
 	}
 
-def log_message(*args, **kwargs):
+def log_message(*args):
 	"""
 	Log a message to both the log file and stdout.
 	This function takes the same arguments as the print function.
 	"""
+	
+	# Don't log these messages if we're in log-only mode
+	if PLEX_GLOBALS.get('log_only', False):
+		return
+	
 	# Format the message
 	message = ' '.join(str(arg) for arg in args)
-	
-	# Print to stdout only if not in log-only mode
-	if not PLEX_GLOBALS.get('log_only', False):
-		print(*args, **kwargs)
 	
 	# Write to log file without timestamp
 	with open(PLEX_GLOBALS['log_file'], 'a') as f:
@@ -374,7 +376,7 @@ def create_slug(title):
 	if title is None:
 		return None
 	
-	slug = re.sub(r'[^a-z0-9\s-]', '', title.lower()).strip()
+	slug = re.sub(r'[^a-z0-9-]', '', re.sub(' ', '-', title.lower())).strip()
 	return slug
 
 def get_movie_year_from_imdb(movie_title):
@@ -867,12 +869,18 @@ def build_playlist_episode_keys():
 	sorted_series = sorted(included_series, key=lambda x: hashlib.md5(x['title'].encode()).hexdigest())
 
 	# Reorder to start with the first partially watched item
+	hasPartiallyWatched = False
 	for i, series in enumerate(sorted_series):
 		this_series_episodes= series_episodes.get(series['key'], [])
 		if this_series_episodes is not None and is_partially_watched(this_series_episodes[0]):
 			sorted_series = sorted_series[i:] + sorted_series[:i]
+			hasPartiallyWatched = True
 			break
-			
+	
+	if not hasPartiallyWatched:
+		start_index = random.randint(0, len(sorted_series) - 1)
+		sorted_series = sorted_series[start_index:] + sorted_series[:start_index]
+
 	# Log each series title with its percent complete and always include status
 	for series in sorted_series:
 		always_include_text = " (Always Included)" if series['always_include'] else ""
@@ -1147,9 +1155,9 @@ def determine_franchise(media_slug):
 	"""
 	Determine the franchise of a media item based on its slug.
 	"""
-	media_metadata = next((item for item in PLEX_GLOBALS['metadata'] if item['slug'] == media_slug), None)
-	if media_metadata and 'franchise' in media_metadata:
-		return create_slug(media_metadata['franchise'])
+	for item in PLEX_GLOBALS['metadata']:
+		if item.get('slug') == media_slug and item.get('franchise'):
+			return create_slug(item['franchise'])
 	
 	for f in PLEX_GLOBALS['known_franchises']:
 		# if the franchise appears at the beginning of the slug with a dash afterwards,

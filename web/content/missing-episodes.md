@@ -172,7 +172,7 @@
 | Ghosts 2021-                                           | Season 02 | Entire season missing                                                                    |
 | Ghosts 2021-                                           | Season 03 | Entire season missing                                                                    |
 | Ghosts 2021-                                           | Season 04 | Entire season missing                                                                    |
-| Good Omens 2019–2025                                   | Error     | Could not find show: Series not found!                                                   |
+| Good Omens 2019-2025                                   | Season 02 | Entire season missing                                                                    |
 | It's Always Sunny in Philadelphia 2005-                | Season 02 | E01 - Charlie Gets Crippled                                                              |
 | It's Always Sunny in Philadelphia 2005-                | Season 02 | E09 - Charlie Goes America All Over Everybody's Ass                                      |
 | It's Always Sunny in Philadelphia 2005-                | Season 02 | E10 - Dennis and Dee Get a New Dad                                                       |
@@ -192,6 +192,38 @@
 | It's Always Sunny in Philadelphia 2005-                | Season 16 | Entire season missing                                                                    |
 | It's Always Sunny in Philadelphia 2005-                | Season 17 | Entire season missing                                                                    |
 | Kroll Show 2013-2015                                   | Season 02 | E11 - Blisteritos Presents Dad Academy Graduation Congraduritos Red Carpet Viewing Party |
+| Mad TV 1995-2016                                       | Season 01 | E01 - Episode #1.1                                                                       |
+| Mad TV 1995-2016                                       | Season 01 | E02 - Episode #1.2                                                                       |
+| Mad TV 1995-2016                                       | Season 01 | E03 - Episode #1.3                                                                       |
+| Mad TV 1995-2016                                       | Season 01 | E04 - Episode #1.4                                                                       |
+| Mad TV 1995-2016                                       | Season 01 | E05 - Episode #1.5                                                                       |
+| Mad TV 1995-2016                                       | Season 01 | E06 - Episode #1.6                                                                       |
+| Mad TV 1995-2016                                       | Season 01 | E07 - Episode #1.7                                                                       |
+| Mad TV 1995-2016                                       | Season 01 | E08 - Episode #1.8                                                                       |
+| Mad TV 1995-2016                                       | Season 01 | E09 - Episode #1.9                                                                       |
+| Mad TV 1995-2016                                       | Season 01 | E10 - Episode #1.10                                                                      |
+| Mad TV 1995-2016                                       | Season 01 | E12 - Episode #1.12                                                                      |
+| Mad TV 1995-2016                                       | Season 01 | E13 - Episode #1.13                                                                      |
+| Mad TV 1995-2016                                       | Season 01 | E14 - Episode #1.14                                                                      |
+| Mad TV 1995-2016                                       | Season 01 | E15 - Episode #1.15                                                                      |
+| Mad TV 1995-2016                                       | Season 01 | E16 - Episode #1.16                                                                      |
+| Mad TV 1995-2016                                       | Season 01 | E17 - Episode #1.17                                                                      |
+| Mad TV 1995-2016                                       | Season 01 | E18 - Episode #1.18                                                                      |
+| Mad TV 1995-2016                                       | Season 01 | E19 - Episode #1.19                                                                      |
+| Mad TV 1995-2016                                       | Season 02 | Could not get episode info: Series or season not found!                                  |
+| Mad TV 1995-2016                                       | Season 03 | Entire season missing                                                                    |
+| Mad TV 1995-2016                                       | Season 04 | Entire season missing                                                                    |
+| Mad TV 1995-2016                                       | Season 05 | Entire season missing                                                                    |
+| Mad TV 1995-2016                                       | Season 06 | Entire season missing                                                                    |
+| Mad TV 1995-2016                                       | Season 07 | Entire season missing                                                                    |
+| Mad TV 1995-2016                                       | Season 08 | Entire season missing                                                                    |
+| Mad TV 1995-2016                                       | Season 09 | Entire season missing                                                                    |
+| Mad TV 1995-2016                                       | Season 10 | Entire season missing                                                                    |
+| Mad TV 1995-2016                                       | Season 11 | Entire season missing                                                                    |
+| Mad TV 1995-2016                                       | Season 12 | Entire season missing                                                                    |
+| Mad TV 1995-2016                                       | Season 13 | Entire season missing                                                                    |
+| Mad TV 1995-2016                                       | Season 14 | Entire season missing                                                                    |
+| Mad TV 1995-2016                                       | Season 15 | Entire season missing                                                                    |
 | Modern Family 2009-2020                                | Season 04 | Entire season missing                                                                    |
 | Modern Family 2009-2020                                | Season 06 | Entire season missing                                                                    |
 | Modern Family 2009-2020                                | Season 07 | Entire season missing                                                                    |
@@ -199,14 +231,25 @@
 | Modern Family 2009-2020                                | Season 09 | Entire season missing                                                                    |
 | Modern Family 2009-2020                                | Season 10 | Entire season missing                                                                    |
 | Modern Family 2009-2020                                | Season 11 | Entire season missing                                                                    |
+| Parks and Recreation 2009-2015                         | Season 01 | Entire season missing                                                                    |
+| Parks and Recreation 2009-2015                         | Season 02 | Entire season missing                                                                    |
+| Parks and Recreation 2009-2015                         | Season 03 | Entire season missing                                                                    |
+| Parks and Recreation 2009-2015                         | Season 05 | E03 - How a Bill Becomes a Law                                                           |
+| Parks and Recreation 2009-2015                         | Season 05 | E04 - Sex Education                                                                      |
+| Parks and Recreation 2009-2015                         | Season 05 | E19 - Article Two                                                                        |
+| Parks and Recreation 2009-2015                         | Season 05 | E20 - Jerry's Retirement                                                                 |
+| Parks and Recreation 2009-2015                         | Season 06 | E20 - One in 8,000                                                                       |
+| Parks and Recreation 2009-2015                         | Season 06 | E22 - Moving Up: Part 2                                                                  |
+| Parks and Recreation 2009-2015                         | Season 07 | Entire season missing                                                                    |
 | Peacemaker 2022-                                       | Season 02 | E01 - Episode #2.1                                                                       |
-| Rick and Morty 2013-                                   | Season 01 | E06 - Rick Potion #9                                                                     |
-| Rick and Morty 2013-                                   | Season 01 | E07 - Raising Gazorpazorp                                                                |
-| Rick and Morty 2013-                                   | Season 01 | E08 - Rixty Minutes                                                                      |
-| Rick and Morty 2013-                                   | Season 01 | E09 - Something Ricked This Way Comes                                                    |
-| Rick and Morty 2013-                                   | Season 01 | E10 - Close Rick-Counters of the Rick Kind                                               |
-| Rick and Morty 2013-                                   | Season 01 | E11 - Ricksy Business                                                                    |
-| Rick and Morty 2013-                                   | Season 02 | Entire season missing                                                                    |
+| Reno 911! 2003-                                        | Season 01 | E13 - Terrorist Training: Part 2                                                         |
+| Reno 911! 2003-                                        | Season 02 | Entire season missing                                                                    |
+| Reno 911! 2003-                                        | Season 03 | Entire season missing                                                                    |
+| Reno 911! 2003-                                        | Season 04 | Entire season missing                                                                    |
+| Reno 911! 2003-                                        | Season 05 | Entire season missing                                                                    |
+| Reno 911! 2003-                                        | Season 06 | Entire season missing                                                                    |
+| Reno 911! 2003-                                        | Season 07 | Entire season missing                                                                    |
+| Reno 911! 2003-                                        | Season 08 | Entire season missing                                                                    |
 | Rick and Morty 2013-                                   | Season 03 | Entire season missing                                                                    |
 | Rick and Morty 2013-                                   | Season 04 | Entire season missing                                                                    |
 | Rick and Morty 2013-                                   | Season 05 | Entire season missing                                                                    |
@@ -218,8 +261,6 @@
 | Severance 2022-                                        | Season 01 | E03 - In Perpetuity                                                                      |
 | Severance 2022-                                        | Season 01 | E10 - Episode #1.10                                                                      |
 | Severance 2022-                                        | Season 02 | Entire season missing                                                                    |
-| Star Trek Discovery 2017-2024                          | Season 04 | Entire season missing                                                                    |
-| Star Trek Discovery 2017-2024                          | Season 05 | Entire season missing                                                                    |
 | Star Trek Strange New Worlds 2022                      | Season 03 | Entire season missing                                                                    |
 | Star Trek Strange New Worlds 2022                      | Season 04 | Entire season missing                                                                    |
 | Stargate SG-1 1997-2007                                | Season 01 | Entire season missing                                                                    |
@@ -239,7 +280,6 @@
 | The L Word 2004-2009                                   | Season 04 | Entire season missing                                                                    |
 | The L Word 2004-2009                                   | Season 05 | Entire season missing                                                                    |
 | The L Word 2004-2009                                   | Season 06 | Entire season missing                                                                    |
-| The L Word Generation Q 2019-2023                      | Season 03 | Entire season missing                                                                    |
 | The Mandalorian 2019-                                  | Season 03 | Entire season missing                                                                    |
 | The Orville 2017-2022                                  | Season 02 | E08 - Identity                                                                           |
 | The Orville 2017-2022                                  | Season 02 | E09 - Identity, Part II                                                                  |
@@ -289,14 +329,13 @@
 | What We Do in the Shadows 2019-2024                    | Season 04 | Entire season missing                                                                    |
 | What We Do in the Shadows 2019-2024                    | Season 05 | Entire season missing                                                                    |
 | What We Do in the Shadows 2019-2024                    | Season 06 | Entire season missing                                                                    |
+| A.I. Rising 2018                                       | Movie     | Empty folder                                                                             |
 | Arrival 2016                                           | Movie     | Empty folder                                                                             |
 | AVA 2020                                               | Movie     | Empty folder                                                                             |
 | Back to the Future 1985                                | Movie     | Empty folder                                                                             |
 | Beetlejuice 1988                                       | Movie     | Empty folder                                                                             |
-| Clue 1985                                              | Movie     | Empty folder                                                                             |
 | Daddy's Home 2015                                      | Movie     | Empty folder                                                                             |
 | Dark City 1998                                         | Movie     | Empty folder                                                                             |
-| Edge of Tomorrow 2014                                  | Movie     | Empty folder                                                                             |
 | Galaxy Quest 1999                                      | Movie     | Empty folder                                                                             |
 | Shang-Chi and the Legend of the Ten Rings 2021         | Movie     | Empty folder                                                                             |
 | Shaun of the Dead 2004                                 | Movie     | Empty folder                                                                             |
@@ -313,6 +352,7 @@
 | The Matrix Revolutions 2003                            | Movie     | Empty folder                                                                             |
 | The Shawshank Redemption 1994                          | Movie     | Empty folder                                                                             |
 | The World's End 2013                                   | Movie     | Empty folder                                                                             |
+| X-Men Last Stand 2006                                  | Movie     | Empty folder                                                                             |
 ## Summary of Missing Content
 
 
@@ -327,18 +367,20 @@
 * `Community 2009-2015` - Season 1 missing episode 12
 * `Cowboy Bebop 1998-1999` - Season 1 missing episode 27
 * `Ghosts 2021-` - Season 2; Season 3; Season 4
+* `Good Omens 2019-2025` - Season 2
 * `It's Always Sunny in Philadelphia 2005-` - Season 2 missing episodes 1, 9, 10; Season 3; Season 4; Season 5; Season 6; Season 7; Season 8; Season 9; Season 10; Season 11; Season 12; Season 13; Season 14; Season 15; Season 16; Season 17
 * `Kroll Show 2013-2015` - Season 2 missing episode 11
+* `Mad TV 1995-2016` - Season 1; Season 3; Season 4; Season 5; Season 6; Season 7; Season 8; Season 9; Season 10; Season 11; Season 12; Season 13; Season 14; Season 15
 * `Modern Family 2009-2020` - Season 4; Season 6; Season 7; Season 8; Season 9; Season 10; Season 11
+* `Parks and Recreation 2009-2015` - Season 1; Season 2; Season 3; Season 5 missing episodes 3, 4, 19, 20; Season 6 missing episodes 20, 22; Season 7
 * `Peacemaker 2022-` - Season 2
-* `Rick and Morty 2013-` - Season 1 (most episodes missing); Season 2; Season 3; Season 4; Season 5; Season 6; Season 7; Season 8
+* `Reno 911! 2003-` - Season 1 missing episode 13; Season 2; Season 3; Season 4; Season 5; Season 6; Season 7; Season 8
+* `Rick and Morty 2013-` - Season 3; Season 4; Season 5; Season 6; Season 7; Season 8
 * `Severance 2022-` - Season 1 missing episodes 1, 2, 3, 10; Season 2
-* `Star Trek Discovery 2017-2024` - Season 4; Season 5
 * `Star Trek Strange New Worlds 2022` - Season 3; Season 4
 * `Stargate SG-1 1997-2007` - Season 1; Season 2; Season 3; Season 4; Season 5; Season 7; Season 8; Season 9; Season 10
 * `The Good Place 2016-2020` - Season 1 missing episode 2
 * `The L Word 2004-2009` - Season 1; Season 3; Season 4; Season 5; Season 6
-* `The L Word Generation Q 2019-2023` - Season 3
 * `The Mandalorian 2019-` - Season 3
 * `The Orville 2017-2022` - Season 2 missing episodes 8, 9, 10, 11; Season 3
 * `The Simpsons 1989-` - Season 1; Season 2; Season 3; Season 4; Season 5; Season 6; Season 8; Season 9; Season 10; Season 11; Season 12; Season 13; Season 14; Season 15; Season 16; Season 17; Season 18; Season 19; Season 20; Season 21; Season 22; Season 23; Season 24; Season 25; Season 26; Season 27; Season 28; Season 29; Season 30; Season 31; Season 32; Season 33; Season 34; Season 35; Season 36
@@ -346,14 +388,13 @@
 * `What We Do in the Shadows 2019-2024` - Season 3; Season 4; Season 5; Season 6
 
 ### Missing Movies
+* `A.I. Rising 2018` - Empty folder
 * `AVA 2020` - Empty folder
 * `Arrival 2016` - Empty folder
 * `Back to the Future 1985` - Empty folder
 * `Beetlejuice 1988` - Empty folder
-* `Clue 1985` - Empty folder
 * `Daddy's Home 2015` - Empty folder
 * `Dark City 1998` - Empty folder
-* `Edge of Tomorrow 2014` - Empty folder
 * `Galaxy Quest 1999` - Empty folder
 * `Shang-Chi and the Legend of the Ten Rings 2021` - Empty folder
 * `Shaun of the Dead 2004` - Empty folder
@@ -370,6 +411,7 @@
 * `The Matrix Revolutions 2003` - Empty folder
 * `The Shawshank Redemption 1994` - Empty folder
 * `The World's End 2013` - Empty folder
+* `X-Men Last Stand 2006` - Empty folder
 
 ---
-Last updated: 2025-05-14 15:06:02
+Last updated: 2025-05-28 16:23:23

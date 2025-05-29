@@ -1,42 +1,37 @@
 {
-    "tvShowLimit": 5,
-    "defaultRewatchDelay": {
-        "movies": "180 days",
-        "tv": "90 days"
-    },
-    "excludedSlugs": [
-        "example-series-1",
-        "example-series-2"
-    ],
-    "movieSeriesSlugs": [
-        "example-series-1",
-        "example-series-2"
-    ],
-    "restrictedPlayMonths": {
-        "december": [
-            "christmas",
-            "new-year"
-        ]
-    },
-    "metadata": [
-        {
-            "title": "Superman II Donner Cut",
-            "year": 1980,
-            "slug": "superman-ii-donner-cut"
-        },
-        {
-            "slug": "silent-running",
-            "rewatchDelay": "1 year"
-        },
-        {
-            "slug": "bobs-burgers",
-            "rewatchDelay": "30 days",
-            "alwaysInclude": true
-        },
-        {
-            "slug": "example-series-3",
-            "rewatchDelay": "180 days",
-            "alwaysInclude": true
-        }
-    ]
+	"tvShowLimit": 5,
+	"defaultRewatchDelay": {
+		"movies": "180 days",
+		"tv": "90 days"
+	},
+	"excludedSlugs": [
+		"example-series-1",
+		"example-series-2"
+	],
+	"movieSeriesSlugs": [
+		"example-series-1",
+		"example-series-2"
+	],
+	"restrictedPlayMonths": {
+		"december": [
+			"christmas",
+			"new-year"
+		]
+	},
+	"metadata": [
+		{
+			"slug": "silent-running",
+			"rewatchDelay": "1 year"
+		},
+		{
+			"slug": "bobs-burgers",
+			"rewatchDelay": "30 days",
+			"alwaysInclude": true
+		},
+		{
+			"slug": "example-series-3",
+			"rewatchDelay": "180 days",
+			"alwaysInclude": true
+		}
+	]
 }
