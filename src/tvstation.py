@@ -877,7 +877,7 @@ def build_playlist_episode_keys():
 			hasPartiallyWatched = True
 			break
 	
-	if not hasPartiallyWatched:
+	if len(sorted_series) > 0 and not hasPartiallyWatched:
 		start_index = random.randint(0, len(sorted_series) - 1)
 		sorted_series = sorted_series[start_index:] + sorted_series[:start_index]
 
