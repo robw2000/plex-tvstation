@@ -34,4 +34,5 @@ python3 src/main.py tvstation -f marvel $1
 # DC tv station
 python3 src/main.py tvstation -f dc $1
 
-
+# Comfort Shows
+python3 src/main.py tvstation -g comfort $1

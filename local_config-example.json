@@ -4,20 +4,12 @@
 		"movies": "180 days",
 		"tv": "90 days"
 	},
-	"excludedSlugs": [
-		"example-series-1",
-		"example-series-2"
-	],
-	"movieSeriesSlugs": [
-		"example-series-1",
-		"example-series-2"
-	],
+	"excludedSlugs": ["example-series-1", "example-series-2"],
+	"movieSeriesSlugs": ["example-series-1", "example-series-2"],
 	"restrictedPlayMonths": {
-		"december": [
-			"christmas",
-			"new-year"
-		]
+		"december": ["christmas", "new-year"]
 	},
+	"comfortShows": ["bobs-burgers", "raising-hope"],
 	"metadata": [
 		{
 			"slug": "silent-running",

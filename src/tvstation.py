@@ -165,11 +165,38 @@ def set_plex_globals(args, local_config_file, log_dir):
 	if franchise:
 		playlist_name = f"{franchise.replace('-', ' ').title()} TV Station"
 	elif genre:
-		# Convert genre to title case for display in playlist name
-		playlist_name = f"{genre.replace('-', ' ').title()} TV Station"
+		# Special-case comfort genre naming
+		if genre == 'comfort':
+			playlist_name = 'Comfort Shows'
+		else:
+			# Convert genre to title case for display in playlist name
+			playlist_name = f"{genre.replace('-', ' ').title()} TV Station"
 
 	# Log file name
 	log_file_name = f'{playlist_name.replace(" ", "-").lower()}.md'
+
+	# Build comfort slugs list from config (strings or objects with slug/title)
+	comfort_entries = LOCAL_CONFIG.get('comfortShows', [])
+	comfort_slugs = []
+	for entry in comfort_entries:
+		if isinstance(entry, str):
+			comfort_slugs.append(entry.strip().lower())
+		elif isinstance(entry, dict):
+			slug_val = entry.get('slug')
+			if slug_val:
+				comfort_slugs.append(str(slug_val).strip().lower())
+				continue
+			title_val = entry.get('title')
+			if title_val:
+				comfort_slugs.append(create_slug(title_val))
+
+	# Deduplicate while preserving order
+	seen_cs = set()
+	comfort_slugs_ordered = []
+	for s in comfort_slugs:
+		if s and s not in seen_cs:
+			seen_cs.add(s)
+			comfort_slugs_ordered.append(s)
 
 	# Initialize PLEX_GLOBALS dictionary
 	PLEX_GLOBALS = {
@@ -205,7 +232,8 @@ def set_plex_globals(args, local_config_file, log_dir):
 		'series_seasons': {},
 		'series_episodes': {},
 
-		'playlist_episode_keys': []
+		'playlist_episode_keys': [],
+		'comfort_slugs': comfort_slugs_ordered
 	}
 
 def log_message(*args):
@@ -466,6 +494,10 @@ def build_series_episodes(ssn):
 			franchise = determine_franchise(series_slug)
 			if franchise != PLEX_GLOBALS['franchise']:
 				continue
+		elif PLEX_GLOBALS['genre'] == 'comfort':
+			# Only include series explicitly listed in comfortShows
+			if series_slug not in PLEX_GLOBALS.get('comfort_slugs', []):
+				continue
 		elif PLEX_GLOBALS['genre'] and PLEX_GLOBALS['genre'] not in series_genres:
 			continue
 		
@@ -692,6 +724,10 @@ def build_movie_list(ssn):
 			# If franchise is set, check if this movie belongs to that franchise
 			franchise = determine_franchise(movie_slug)
 			if franchise != PLEX_GLOBALS['franchise']:
+				continue
+		elif PLEX_GLOBALS['genre'] == 'comfort':
+			# Only include movies explicitly listed in comfortShows
+			if movie_slug not in PLEX_GLOBALS.get('comfort_slugs', []):
 				continue
 		elif PLEX_GLOBALS['genre'] and PLEX_GLOBALS['genre'] not in movie_genres:
 			continue
@@ -1091,7 +1127,9 @@ def my_tv_station(ssn, args):
 	
 	# Build the playlist
 	build_series_episodes(ssn)
-	build_movie_list(ssn)
+	# In comfort mode, skip movies entirely
+	if PLEX_GLOBALS.get('genre') != 'comfort':
+		build_movie_list(ssn)
 	build_playlist_episode_keys()
 
 	# Check if any media is being watched
