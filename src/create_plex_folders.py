@@ -43,21 +43,25 @@ def set_plex_globals():
 	"""Set the PLEX_GLOBALS dictionary with necessary global variables."""
 	global PLEX_GLOBALS
 	
-	plex_folder = Path(os.getenv("plex_folder", ""))
+	plex_movies_folder = Path(os.getenv("plex_movies_folder", ""))
+	plex_tv_folder = Path(os.getenv("plex_tv_folder", ""))
+	
+	# Check if plex_movies_folder and plex_tv_folder environment variables are set
+	if not plex_movies_folder:
+		print("Error: plex_movies_folder environment variable is not set.")
+		sys.exit(1)
+	if not plex_tv_folder:
+		print("Error: plex_tv_folder environment variable is not set.")
+		sys.exit(1)
+	
 	PLEX_GLOBALS = {
-		'plex_folder': plex_folder,
-		'TV_SHOWS_PATH': plex_folder / "TV Shows",
-		'MOVIES_PATH': plex_folder / "Movies",
+		'TV_SHOWS_PATH': plex_tv_folder,
+		'MOVIES_PATH': plex_movies_folder,
 		'OMDB_API_KEY': os.getenv("omdb_api_key"),
 		'OMDB_API_URL': os.getenv("omdb_api_url"),
 		'MOVIE_WISHLIST_FILE': "movie_wishlist.txt",
 		'TV_WISHLIST_FILE': "tv_wishlist.txt"
 	}
-
-	# Check if plex_folder environment variable is set
-	if not PLEX_GLOBALS.get('plex_folder'):
-		print("Error: plex_folder environment variable is not set.")
-		sys.exit(1)
 
 def normalize_title(title: str) -> str:
 	"""Normalize a title by removing non-alphanumeric characters and converting to lowercase"""

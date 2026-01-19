@@ -17,6 +17,7 @@ Setup:
 """
 from os import getenv
 import requests
+from utils import test_plex_connectivity_with_fallback
 
 PLEX_GLOBALS = {
 	'plex_ip': '',
@@ -41,9 +42,7 @@ def get_base_url():
 	"""
 	Retrieves the base URL for the Plex server.
 	"""
-	if PLEX_GLOBALS['base_url'] is not None:
-		return PLEX_GLOBALS['base_url']
-
+	# Always rebuild base_url from current IP to handle IP changes
 	PLEX_GLOBALS['base_url'] = f"http://{PLEX_GLOBALS['plex_ip']}:{PLEX_GLOBALS['plex_port']}"
 	return PLEX_GLOBALS['base_url']
 
@@ -103,6 +102,9 @@ def run_slug_list(file_location):
 	ssn.headers.update({'Accept': 'application/json'})
 	ssn.params.update({'X-Plex-Token': PLEX_GLOBALS['plex_api_token']})
 
+	# Test connectivity with IP fallback
+	test_plex_connectivity_with_fallback(ssn, PLEX_GLOBALS)
+	
 	# Get section keys
 	movie_section_key, tv_section_key = get_section_keys(ssn)
 

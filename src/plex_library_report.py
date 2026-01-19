@@ -18,24 +18,27 @@ import time
 import requests
 
 from media_library_analyzer import PLEX_GLOBALS
-from utils import build_genres_set
+from utils import build_genres_set, test_plex_connectivity_with_fallback
 
 def initialize_plex_globals(file_location):
 	"""
 	Initialize the PLEX_GLOBALS dictionary with environment variables and other global settings.
 	"""
 
-	# Ensure plex_folder is set
-	if not getenv('plex_folder'):
-		log_message("Error: plex_folder environment variable is not set.")
-		raise EnvironmentError("plex_folder environment variable is not set.")
+	# Ensure plex_movies_folder and plex_tv_folder are set
+	plex_movies_folder = getenv('plex_movies_folder')
+	plex_tv_folder = getenv('plex_tv_folder')
+	if not plex_movies_folder:
+		log_message("Error: plex_movies_folder environment variable is not set.")
+		raise EnvironmentError("plex_movies_folder environment variable is not set.")
+	if not plex_tv_folder:
+		log_message("Error: plex_tv_folder environment variable is not set.")
+		raise EnvironmentError("plex_tv_folder environment variable is not set.")
 
 	# Adjust paths to use file_location
 	logs_dir = file_location / 'logs'
 	logs_dir.mkdir(exist_ok=True)
 
-	# Create log file with date prefix
-	current_date = time.strftime('%Y-%m-%d')
 	plex_globals = {
 		'plex_ip': getenv('plex_ip', '192.168.1.196'),
 		'plex_port': getenv('plex_port', '32400'),
@@ -44,9 +47,10 @@ def initialize_plex_globals(file_location):
 		'base_url': None,
 		'movies_section_key': None,
 		'tv_section_key': None,
-		'plex_folder': getenv('plex_folder', ''),
+		'MOVIES_PATH': Path(plex_movies_folder),
+		'TV_SHOWS_PATH': Path(plex_tv_folder),
 		'logs_dir': logs_dir,
-		'log_file': path.join(logs_dir, f'{current_date}-plex_library_report.log'),
+		'log_file': path.join(logs_dir, 'plex_library_report.log'),
 		'markdown_file': path.join(logs_dir, 'library-media.md')
 	}
 
@@ -57,18 +61,15 @@ def log_message(*args, **kwargs):
 	Log a message to both the log file and stdout.
 	This function takes the same arguments as the print function.
 	"""
-	# Get the current timestamp
-	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-	
 	# Format the message
 	message = ' '.join(str(arg) for arg in args)
 	
 	# Print to stdout
 	print(*args, **kwargs)
 	
-	# Write to dated log file
+	# Write to log file
 	with open(PLEX_GLOBALS['log_file'], 'a') as f:
-		f.write(f"[{timestamp}] {message}\n")
+		f.write(f"{message}\n")
 
 def write_markdown(*args, **kwargs):
 	"""
@@ -82,6 +83,13 @@ def write_markdown(*args, **kwargs):
 	with open(PLEX_GLOBALS['markdown_file'], 'a') as f:
 		f.write(f"{message}\n")
 
+def clear_log():
+	"""
+	Clear the log file if it exists.
+	"""
+	if path.exists(PLEX_GLOBALS['log_file']):
+		os.remove(PLEX_GLOBALS['log_file'])
+
 def clear_markdown():
 	"""
 	Clear the markdown file and add the header.
@@ -94,9 +102,7 @@ def get_base_url():
 	"""
 	Retrieves the base URL for the Plex server.
 	"""
-	if PLEX_GLOBALS['base_url'] is not None:
-		return PLEX_GLOBALS['base_url']
-
+	# Always rebuild base_url from current IP to handle IP changes
 	PLEX_GLOBALS['base_url'] = f"http://{PLEX_GLOBALS['plex_ip']}:{PLEX_GLOBALS['plex_port']}"
 	return PLEX_GLOBALS['base_url']
 
@@ -119,16 +125,20 @@ def get_section_keys(ssn):
 
 def calculate_directory_size(directory, title=None, year=None):
 	total_size = 0
+	movies_path = PLEX_GLOBALS['MOVIES_PATH']
+	tv_show_path = PLEX_GLOBALS['TV_SHOWS_PATH']
 
 	for dirpath, dirnames, filenames in walk(directory):
 		for d in dirnames:
-			if '/Movies' in str(directory) and title is not None and year is not None and d.startswith(title) and d.endswith(str(year)):
+			# Check if we're in the movies directory
+			if str(movies_path) in str(directory) and title is not None and year is not None and d.startswith(title) and d.endswith(str(year)):
 				dp = path.join(dirpath, d)
 				return calculate_directory_size(dp)
-			elif '/TV Shows' in str(directory) and title is not None and d.startswith(title):
+			# Check if we're in the TV shows directory
+			elif str(tv_show_path) in str(directory) and title is not None and d.startswith(title):
 				dp = path.join(dirpath, d)
 				return calculate_directory_size(dp)
-			elif '/TV Shows' in str(directory) and d.startswith('Season '):
+			elif str(tv_show_path) in str(directory) and d.startswith('Season '):
 				dp = path.join(dirpath, d)
 				return calculate_directory_size(dp)
 
@@ -164,7 +174,7 @@ def get_movie_stats(ssn):
 	
 	for movie in movie_list:
 		# Calculate file size from disk
-		movies_path = Path(PLEX_GLOBALS['plex_folder']) / 'Movies'
+		movies_path = PLEX_GLOBALS['MOVIES_PATH']
 		
 		# print(f"Checking movie path {movies_path} for {movie['title']}")  # Debugging output
 		file_size = calculate_directory_size(movies_path, movie['title'], movie['year'])
@@ -238,7 +248,7 @@ def get_tv_stats(ssn):
 			
 			# Calculate file size from disk for each episode
 			for episode in episodes:
-				tv_show_path = Path(PLEX_GLOBALS['plex_folder']) / 'TV Shows'
+				tv_show_path = PLEX_GLOBALS['TV_SHOWS_PATH']
 				show_size += calculate_directory_size(tv_show_path, series['title'])
 		
 		total_episodes += show_episodes
@@ -280,11 +290,13 @@ def generate_report(ssn):
 	"""
 	Generates a comprehensive report of the Plex library, including file sizes.
 	"""
-	# Clear and initialize markdown file
+	# Clear existing log file and markdown file
+	clear_log()
 	clear_markdown()
 	
 	# Log and write to markdown
-	log_message("\n=== Plex Library Report ===")
+	timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+	log_message(f"\n=== Plex Library Report ({timestamp}) ===")
 	
 	# Get movie statistics
 	movie_stats = get_movie_stats(ssn)
@@ -422,6 +434,9 @@ def run_plex_report(file_location):
 	ssn = requests.Session()
 	ssn.headers.update({'Accept': 'application/json'})
 	ssn.params.update({'X-Plex-Token': PLEX_GLOBALS['plex_api_token']})
+
+	# Test connectivity with IP fallback
+	test_plex_connectivity_with_fallback(ssn, PLEX_GLOBALS)
 
 	# Generate the report
 	generate_report(ssn) 

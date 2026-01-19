@@ -66,7 +66,7 @@ import hashlib
 import json
 import requests
 import re
-from utils import build_genres_set, get_nested_json_value
+from utils import build_genres_set, get_nested_json_value, get_local_ip
 
 # Global variables
 log_file = None
@@ -278,6 +278,8 @@ def load_globals(ssn):
 	the PLEX_GLOBALS dictionary with required values.
 	"""
 	get_base_url()
+	# Test connectivity before attempting operations
+	test_plex_connectivity(ssn)
 	clean_restricted_play_months()
 	get_section_keys(ssn)
 	get_playlist_key(ssn)
@@ -286,11 +288,105 @@ def get_base_url():
 	"""
 	Retrieves the base URL for the Plex server.
 	"""
-	if PLEX_GLOBALS['base_url'] is not None:
-		return PLEX_GLOBALS['base_url']
-
+	# Always rebuild base_url from current IP to handle IP changes
 	PLEX_GLOBALS['base_url'] = f"http://{PLEX_GLOBALS['plex_ip']}:{PLEX_GLOBALS['plex_port']}"
 	return PLEX_GLOBALS['base_url']
+
+def test_plex_connectivity(ssn):
+	"""
+	Tests connectivity to the Plex server and provides helpful error messages.
+	First tries the configured plex_ip, then falls back to the local IP address.
+	Raises a ConnectionError with troubleshooting information if both attempts fail.
+	"""
+	plex_port = PLEX_GLOBALS['plex_port']
+	configured_ip = PLEX_GLOBALS['plex_ip']
+	
+	# First, try the configured IP
+	try:
+		base_url = get_base_url()
+		response = ssn.get(f'{base_url}/', timeout=5)
+		response.raise_for_status()
+		return True
+	except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.RequestException) as e:
+		# If configured IP fails, try local IP
+		local_ip = get_local_ip()
+		if local_ip and local_ip != configured_ip:
+			# Update the IP and try again
+			PLEX_GLOBALS['plex_ip'] = local_ip
+			PLEX_GLOBALS['base_url'] = None  # Reset base_url to force rebuild
+			base_url = get_base_url()
+			
+			try:
+				response = ssn.get(f'{base_url}/', timeout=5)
+				response.raise_for_status()
+				# Success with local IP
+				return True
+			except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.RequestException) as e2:
+				# Both attempts failed
+				error_msg = f"""
+ERROR: Cannot connect to Plex server.
+
+Attempted connections:
+1. Configured IP ({configured_ip}:{plex_port}) - FAILED
+2. Local IP ({local_ip}:{plex_port}) - FAILED
+
+This is a network connectivity issue. Please check:
+
+1. Is the Plex server running?
+   - Check if the Plex server is powered on and running
+   - Verify the Plex service is active on the server
+
+2. Network connectivity:
+   - Are you on the same network as the Plex server?
+   - Can you ping the server? Try: ping {local_ip}
+   - Can you access the Plex web interface at http://{local_ip}:{plex_port}?
+
+3. Firewall issues:
+   - Check if a firewall is blocking port {plex_port}
+   - Verify the Plex server firewall allows connections on port {plex_port}
+
+4. VPN/Network changes:
+   - If using WSL2, ensure your network configuration allows access to local network
+   - Check if VPN or network changes have affected connectivity
+
+Original errors:
+- Configured IP: {str(e)}
+- Local IP: {str(e2)}
+"""
+				raise ConnectionError(error_msg) from e2
+		else:
+			# No local IP available or same as configured, just report the original error
+			error_msg = f"""
+ERROR: Cannot connect to Plex server at {configured_ip}:{plex_port}
+
+This is a network connectivity issue. Please check:
+
+1. Is the Plex server running?
+   - Check if the Plex server is powered on and running
+   - Verify the Plex service is active on the server
+
+2. Has the IP address changed?
+   - The configured IP is: {configured_ip}
+   - Check if your Plex server has a new IP address
+   - You can set the correct IP using: export plex_ip=<new_ip>
+   - Or create a .env file with: plex_ip=<new_ip>
+
+3. Network connectivity:
+   - Are you on the same network as the Plex server?
+   - Can you ping the server? Try: ping {configured_ip}
+   - Can you access the Plex web interface at http://{configured_ip}:{plex_port}?
+
+4. Firewall issues:
+   - Check if a firewall is blocking port {plex_port}
+   - Verify the Plex server firewall allows connections on port {plex_port}
+
+5. VPN/Network changes:
+   - If using WSL2, ensure your network configuration allows access to local network
+   - Check if VPN or network changes have affected connectivity
+
+Original error: {str(e)}
+"""
+			raise ConnectionError(error_msg) from e
 
 def get_machine_id(ssn):
 	"""
@@ -335,7 +431,22 @@ def get_section_keys(ssn):
 		return PLEX_GLOBALS['movies_section_key'], PLEX_GLOBALS['tv_section_key']
 	
 	base_url = get_base_url()
-	sections = ssn.get(f'{base_url}/library/sections/').json()['MediaContainer']['Directory']
+	try:
+		response = ssn.get(f'{base_url}/library/sections/')
+		response.raise_for_status()
+		sections = response.json()['MediaContainer']['Directory']
+	except requests.exceptions.ConnectionError as e:
+		# Re-raise with more context if connectivity test didn't catch it
+		plex_ip = PLEX_GLOBALS['plex_ip']
+		plex_port = PLEX_GLOBALS['plex_port']
+		error_msg = f"Cannot connect to Plex server at {plex_ip}:{plex_port}. Please check network connectivity and server status."
+		raise ConnectionError(error_msg) from e
+	except requests.exceptions.RequestException as e:
+		plex_ip = PLEX_GLOBALS['plex_ip']
+		plex_port = PLEX_GLOBALS['plex_port']
+		error_msg = f"Failed to retrieve library sections from Plex server at {plex_ip}:{plex_port}. Error: {str(e)}"
+		raise ConnectionError(error_msg) from e
+	
 	for section in sections:
 		if section['title'] == 'Movies':
 			PLEX_GLOBALS['movies_section_key'] = section['key']

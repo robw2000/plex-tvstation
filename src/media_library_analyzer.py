@@ -49,7 +49,6 @@ log_only = False
 
 # Define PLEX_GLOBALS to hold constants
 PLEX_GLOBALS = {
-	'plex_folder': None,
 	'TV_SHOWS_PATH': None,
 	'MOVIES_PATH': None,
 	'OMDB_API_KEY': None,
@@ -61,12 +60,15 @@ def initialize_plex_globals():
 	"""
 	Initialize the PLEX_GLOBALS dictionary with environment variables and paths.
 	"""
-	PLEX_GLOBALS['plex_folder'] = os.getenv('plex_folder')
-	if not PLEX_GLOBALS['plex_folder']:
-		raise EnvironmentError("plex_folder environment variable is not set.")
+	plex_movies_folder = os.getenv('plex_movies_folder')
+	plex_tv_folder = os.getenv('plex_tv_folder')
+	if not plex_movies_folder:
+		raise EnvironmentError("plex_movies_folder environment variable is not set.")
+	if not plex_tv_folder:
+		raise EnvironmentError("plex_tv_folder environment variable is not set.")
 
-	PLEX_GLOBALS['TV_SHOWS_PATH'] = Path(PLEX_GLOBALS['plex_folder']) / "TV Shows"
-	PLEX_GLOBALS['MOVIES_PATH'] = Path(PLEX_GLOBALS['plex_folder']) / "Movies"
+	PLEX_GLOBALS['TV_SHOWS_PATH'] = Path(plex_tv_folder)
+	PLEX_GLOBALS['MOVIES_PATH'] = Path(plex_movies_folder)
 	PLEX_GLOBALS['OMDB_API_KEY'] = os.getenv('omdb_api_key')
 	PLEX_GLOBALS['OMDB_API_URL'] = os.getenv('omdb_api_url')
 
