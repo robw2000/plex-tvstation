@@ -125,32 +125,60 @@ def get_section_keys(ssn):
 	return PLEX_GLOBALS['movies_section_key'], PLEX_GLOBALS['tv_section_key']
 
 def calculate_directory_size(directory, title=None, year=None):
+	"""
+	Calculate the total size of a directory recursively.
+	If title (and optionally year) are provided, find the matching subdirectory first.
+	
+	Args:
+		directory: Base directory to search in
+		title: Optional title to match (for movies or TV shows)
+		year: Optional year to match (for movies)
+	
+	Returns:
+		Total size in bytes
+	"""
 	total_size = 0
 	movies_path = PLEX_GLOBALS['MOVIES_PATH']
 	tv_show_path = PLEX_GLOBALS['TV_SHOWS_PATH']
-
+	
+	# If title is provided, first find the matching directory
+	if title is not None:
+		if year is not None and str(movies_path) in str(directory):
+			# For movies: look for "Title (Year)" format
+			movie_dir_pattern = f"{title} ({year})"
+			for item in Path(directory).iterdir():
+				if item.is_dir() and item.name == movie_dir_pattern:
+					directory = item
+					break
+			else:
+				# Fallback: try partial match
+				for item in Path(directory).iterdir():
+					if item.is_dir() and item.name.startswith(title) and f"({year})" in item.name:
+						directory = item
+						break
+				else:
+					# No match found
+					return 0
+		elif str(tv_show_path) in str(directory):
+			# For TV shows: look for directories starting with the title
+			for item in Path(directory).iterdir():
+				if item.is_dir() and item.name.startswith(title):
+					directory = item
+					break
+			else:
+				# No match found
+				return 0
+	
+	# Recursively calculate size of all files in the directory
 	for dirpath, dirnames, filenames in walk(directory):
-		for d in dirnames:
-			# Check if we're in the movies directory
-			if str(movies_path) in str(directory) and title is not None and year is not None and d.startswith(title) and d.endswith(str(year)):
-				dp = path.join(dirpath, d)
-				return calculate_directory_size(dp)
-			# Check if we're in the TV shows directory
-			elif str(tv_show_path) in str(directory) and title is not None and d.startswith(title):
-				dp = path.join(dirpath, d)
-				return calculate_directory_size(dp)
-			elif str(tv_show_path) in str(directory) and d.startswith('Season '):
-				dp = path.join(dirpath, d)
-				return calculate_directory_size(dp)
-
 		for f in filenames:
 			fp = path.join(dirpath, f)
 			try:
 				file_size = stat(fp).st_size
 				total_size += file_size
-				# print(f"File: {fp}, Size: {file_size}")  # Debugging output
-			except FileNotFoundError:
-				print(f"File not found: {fp}")  # Debugging output
+			except (FileNotFoundError, OSError):
+				# File may have been deleted or is inaccessible
+				pass
 	return total_size
 
 def get_movie_stats(ssn):
@@ -238,7 +266,10 @@ def get_tv_stats(ssn):
 		
 		show_episodes = 0
 		show_watched = 0
-		show_size = 0
+		
+		# Calculate file size from disk for the entire show (once, not per episode!)
+		tv_show_path = PLEX_GLOBALS['TV_SHOWS_PATH']
+		show_size = calculate_directory_size(tv_show_path, series['title'])
 		
 		for season in seasons:
 			season_key = season['ratingKey']
@@ -246,11 +277,6 @@ def get_tv_stats(ssn):
 			
 			show_episodes += len(episodes)
 			show_watched += len([e for e in episodes if e.get('viewCount', 0) > 0])
-			
-			# Calculate file size from disk for each episode
-			for episode in episodes:
-				tv_show_path = PLEX_GLOBALS['TV_SHOWS_PATH']
-				show_size += calculate_directory_size(tv_show_path, series['title'])
 		
 		total_episodes += show_episodes
 		watched_episodes += show_watched
