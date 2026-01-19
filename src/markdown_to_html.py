@@ -232,10 +232,13 @@ def generate_html_page(title, content_html, current_page):
 			return getSortKey(text);
 		}
 		
-		// For numeric columns (Year, Episodes, etc.)
-		const numMatch = text.match(/^\\d+/);
-		if (numMatch) {
-			return parseFloat(numMatch[0]);
+		// For size columns (GB, TB, MB, etc.) - check BEFORE numeric to avoid false matches
+		const sizeMatch = text.match(/([\\d.]+)\\s*(TB|GB|MB|KB|B)/i);
+		if (sizeMatch) {
+			const value = parseFloat(sizeMatch[1]);
+			const unit = sizeMatch[2].toUpperCase();
+			const multipliers = { 'B': 1, 'KB': 1024, 'MB': 1024*1024, 'GB': 1024*1024*1024, 'TB': 1024*1024*1024*1024 };
+			return value * (multipliers[unit] || 1);
 		}
 		
 		// For percentage columns
@@ -244,13 +247,10 @@ def generate_html_page(title, content_html, current_page):
 			return parseFloat(pctMatch[1]);
 		}
 		
-		// For size columns (GB, TB, MB, etc.)
-		const sizeMatch = text.match(/([\\d.]+)\\s*(TB|GB|MB|KB|B)/i);
-		if (sizeMatch) {
-			const value = parseFloat(sizeMatch[1]);
-			const unit = sizeMatch[2].toUpperCase();
-			const multipliers = { 'B': 1, 'KB': 1024, 'MB': 1024*1024, 'GB': 1024*1024*1024, 'TB': 1024*1024*1024*1024 };
-			return value * (multipliers[unit] || 1);
+		// For numeric columns (Year, Episodes, etc.) - check AFTER size to avoid false matches
+		const numMatch = text.match(/^\\d+/);
+		if (numMatch) {
+			return parseFloat(numMatch[0]);
 		}
 		
 		// For Yes/No columns
