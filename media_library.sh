@@ -1,4 +1,4 @@
 #!/bin/bash
 
 # $1 is the log-only flag (-l)
-python3 src/main.py analyze $1
+python3 src/main.py medialibrary $1

@@ -43,6 +43,7 @@ from tabulate import tabulate
 from typing import Dict, List, Set, Tuple
 import datetime
 import time
+import json
 
 # Global variables
 log_only = False
@@ -53,8 +54,15 @@ PLEX_GLOBALS = {
 	'MOVIES_PATH': None,
 	'OMDB_API_KEY': None,
 	'OMDB_API_URL': None,
-	'logs_dir': None
+	'logs_dir': None,
+	'cache_file': None
 }
+
+# Global cache dictionary
+SHOW_CACHE = {}
+
+# Global flag to track if OMDB API has returned an error (e.g., rate limit reached)
+OMDB_API_ERROR = False
 
 def initialize_plex_globals():
 	"""
@@ -72,20 +80,114 @@ def initialize_plex_globals():
 	PLEX_GLOBALS['OMDB_API_KEY'] = os.getenv('omdb_api_key')
 	PLEX_GLOBALS['OMDB_API_URL'] = os.getenv('omdb_api_url')
 
+def load_show_cache():
+	"""
+	Load show cache from JSON file.
+	"""
+	global SHOW_CACHE
+	if PLEX_GLOBALS['cache_file'] and PLEX_GLOBALS['cache_file'].exists():
+		try:
+			with open(PLEX_GLOBALS['cache_file'], 'r', encoding='utf-8') as f:
+				SHOW_CACHE = json.load(f)
+			print_message(f"Loaded {len(SHOW_CACHE)} shows from cache")
+		except (json.JSONDecodeError, IOError) as e:
+			print_message(f"Error loading cache: {e}")
+			SHOW_CACHE = {}
+	else:
+		SHOW_CACHE = {}
+
+def save_show_cache():
+	"""
+	Save show cache to JSON file.
+	"""
+	if PLEX_GLOBALS['cache_file']:
+		try:
+			with open(PLEX_GLOBALS['cache_file'], 'w', encoding='utf-8') as f:
+				json.dump(SHOW_CACHE, f, indent=2, ensure_ascii=False)
+			print_message(f"Saved {len(SHOW_CACHE)} shows to cache")
+		except IOError as e:
+			print_message(f"Error saving cache: {e}")
+
+def is_cache_fresh(show_name: str) -> bool:
+	"""
+	Check if cached show information is fresh (less than a week old).
+	
+	Args:
+		show_name: The name of the show to check
+		
+	Returns:
+		True if cache is fresh, False otherwise
+	"""
+	if show_name not in SHOW_CACHE:
+		return False
+	
+	cache_entry = SHOW_CACHE[show_name]
+	if 'last_updated' not in cache_entry:
+		return False
+	
+	try:
+		last_updated = datetime.datetime.fromisoformat(cache_entry['last_updated'])
+		now = datetime.datetime.now()
+		age = now - last_updated
+		return age.days < 7
+	except (ValueError, KeyError):
+		return False
+
+def get_cache_key(show_name: str) -> str:
+	"""
+	Get a normalized cache key for a show name.
+	Strips years from show name for consistent caching.
+	
+	Args:
+		show_name: The name of the show
+		
+	Returns:
+		Normalized show name for use as cache key
+	"""
+	return re.sub(r'\s+\d{4}(-\d{4})?(-\s*)?$', '', show_name)
+
 def get_show_info(show_name: str) -> dict:
 	"""
-	Get show information from OMDB API.
+	Get show information from OMDB API or cache.
 	
-	This function queries the OMDB API to get detailed information about a TV show.
-	It first searches for the show to get the exact title, then retrieves the full show information.
+	This function first checks the cache for fresh show information. If the cache
+	is fresh (less than a week old), it returns the cached data. Otherwise, it
+	queries the OMDB API to get detailed information about a TV show and updates
+	the cache.
+	
+	If an API error has been encountered previously, only cached data is used.
 	
 	Args:
 		show_name: The name of the show to search for
 		
 	Returns:
-		A dictionary containing the show information from OMDB API
+		A dictionary containing the show information from OMDB API or cache
 	"""
-	# Strip years from show name (e.g., "Show Name 2006-2013" or "Show Name 2006-" -> "Show Name")
+	global OMDB_API_ERROR
+	cache_key = get_cache_key(show_name)
+	
+	# Check cache first
+	if cache_key in SHOW_CACHE:
+		cached_data = SHOW_CACHE[cache_key]
+		if 'show_info' in cached_data:
+			# Use cache if fresh, or if API error has occurred (use stale cache)
+			if is_cache_fresh(cache_key) or OMDB_API_ERROR:
+				if OMDB_API_ERROR:
+					print_message(f"Using cached show info for '{show_name}' (API error encountered, using stale cache)")
+				else:
+					print_message(f"Using cached show info for '{show_name}'")
+				return cached_data['show_info']
+	
+	# If API error has occurred, don't make more API calls
+	if OMDB_API_ERROR:
+		if cache_key in SHOW_CACHE and 'show_info' in SHOW_CACHE[cache_key]:
+			print_message(f"Using cached show info for '{show_name}' (API error encountered, using stale cache)")
+			return SHOW_CACHE[cache_key]['show_info']
+		else:
+			return {"Response": "False", "Error": "API error encountered and no cache available"}
+	
+	# Cache miss or stale - fetch from API
+	print_message(f"Fetching show info from API for '{show_name}'")
 	clean_show_name = re.sub(r'\s+\d{4}(-\d{4})?(-\s*)?$', '', show_name)
 	
 	# First search for the show to get the exact title
@@ -100,10 +202,24 @@ def get_show_info(show_name: str) -> dict:
 	print_message(f"Search results for '{clean_show_name}': {search_results.get('Response', 'Unknown')}")
 	
 	if search_results.get("Response") == "False" or "Error" in search_results:
+		# Set error flag to stop future API calls
+		OMDB_API_ERROR = True
+		print_message(f"OMDB API error encountered. Stopping API calls and using cache only: {search_results.get('Error', 'Unknown error')}")
+		# Check if we have stale cache to use
+		if cache_key in SHOW_CACHE and 'show_info' in SHOW_CACHE[cache_key]:
+			print_message(f"Using stale cached show info for '{show_name}' due to API error")
+			return SHOW_CACHE[cache_key]['show_info']
 		return search_results
 		
 	if not search_results.get("Search"):
-		return {"Response": "False", "Error": "No results found"}
+		error_result = {"Response": "False", "Error": "No results found"}
+		OMDB_API_ERROR = True
+		print_message(f"OMDB API error encountered. Stopping API calls and using cache only: No results found")
+		# Check if we have stale cache to use
+		if cache_key in SHOW_CACHE and 'show_info' in SHOW_CACHE[cache_key]:
+			print_message(f"Using stale cached show info for '{show_name}' due to API error")
+			return SHOW_CACHE[cache_key]['show_info']
+		return error_result
 		
 	# Get the first result's exact title
 	exact_title = search_results["Search"][0]["Title"]
@@ -116,23 +232,73 @@ def get_show_info(show_name: str) -> dict:
 		"type": "series"
 	}
 	response = requests.get(PLEX_GLOBALS['OMDB_API_URL'], params=params)
-	return response.json()
+	show_info = response.json()
+	
+	# Check for errors in the show info response
+	if show_info.get("Response") == "False" or "Error" in show_info:
+		# Set error flag to stop future API calls
+		OMDB_API_ERROR = True
+		print_message(f"OMDB API error encountered. Stopping API calls and using cache only: {show_info.get('Error', 'Unknown error')}")
+		print_message(f"Skipping cache update for '{show_name}' due to error: {show_info.get('Error', 'Unknown error')}")
+		# Check if we have stale cache to use
+		if cache_key in SHOW_CACHE and 'show_info' in SHOW_CACHE[cache_key]:
+			print_message(f"Using stale cached show info for '{show_name}' due to API error")
+			return SHOW_CACHE[cache_key]['show_info']
+		return show_info
+	
+	# Only update cache if the response is successful (no errors)
+	if show_info.get("Response") == "True" and "Error" not in show_info:
+		if cache_key not in SHOW_CACHE:
+			SHOW_CACHE[cache_key] = {'episodes': {}}
+		SHOW_CACHE[cache_key]['show_info'] = show_info
+		SHOW_CACHE[cache_key]['last_updated'] = datetime.datetime.now().isoformat()
+	
+	return show_info
 
 def get_episode_info(show_name: str, season: int) -> dict:
 	"""
-	Get episode information for a specific season from OMDB API.
+	Get episode information for a specific season from OMDB API or cache.
 	
-	This function queries the OMDB API to get detailed information about all episodes
-	in a specific season of a TV show.
+	This function first checks the cache for fresh episode information. If the cache
+	is fresh (less than a week old), it returns the cached data. Otherwise, it
+	queries the OMDB API to get detailed information about all episodes in a specific
+	season of a TV show and updates the cache.
+	
+	If an API error has been encountered previously, only cached data is used.
 	
 	Args:
 		show_name: The name of the show
 		season: The season number to get information for
 		
 	Returns:
-		A dictionary containing the episode information from OMDB API
+		A dictionary containing the episode information from OMDB API or cache
 	"""
-	# Strip years from show name (e.g., "Show Name 2006-2013" or "Show Name 2006-" -> "Show Name")
+	global OMDB_API_ERROR
+	cache_key = get_cache_key(show_name)
+	season_key = f"season_{season}"
+	
+	# Check cache first
+	if cache_key in SHOW_CACHE:
+		cached_data = SHOW_CACHE[cache_key]
+		if 'episodes' in cached_data and season_key in cached_data['episodes']:
+			# Use cache if fresh, or if API error has occurred (use stale cache)
+			if is_cache_fresh(cache_key) or OMDB_API_ERROR:
+				if OMDB_API_ERROR:
+					print_message(f"Using cached episode info for '{show_name}' Season {season} (API error encountered, using stale cache)")
+				else:
+					print_message(f"Using cached episode info for '{show_name}' Season {season}")
+				return cached_data['episodes'][season_key]
+	
+	# If API error has occurred, don't make more API calls
+	if OMDB_API_ERROR:
+		if cache_key in SHOW_CACHE and 'episodes' in SHOW_CACHE[cache_key] and season_key in SHOW_CACHE[cache_key]['episodes']:
+			print_message(f"Using cached episode info for '{show_name}' Season {season} (API error encountered, using stale cache)")
+			return SHOW_CACHE[cache_key]['episodes'][season_key]
+		else:
+			return {"Response": "False", "Error": "API error encountered and no cache available"}
+	
+	# Cache miss or stale - fetch from API
+	print_message(f"Fetching episode info from API for '{show_name}' Season {season}")
 	clean_show_name = re.sub(r'\s+\d{4}(-\d{4})?(-\s*)?$', '', show_name)
 	
 	# First search for the show to get the exact title
@@ -145,10 +311,24 @@ def get_episode_info(show_name: str, season: int) -> dict:
 	search_results = search_response.json()
 	
 	if search_results.get("Response") == "False" or "Error" in search_results:
+		# Set error flag to stop future API calls
+		OMDB_API_ERROR = True
+		print_message(f"OMDB API error encountered. Stopping API calls and using cache only: {search_results.get('Error', 'Unknown error')}")
+		# Check if we have stale cache to use
+		if cache_key in SHOW_CACHE and 'episodes' in SHOW_CACHE[cache_key] and season_key in SHOW_CACHE[cache_key]['episodes']:
+			print_message(f"Using stale cached episode info for '{show_name}' Season {season} due to API error")
+			return SHOW_CACHE[cache_key]['episodes'][season_key]
 		return search_results
 		
 	if not search_results.get("Search"):
-		return {"Response": "False", "Error": "No results found"}
+		error_result = {"Response": "False", "Error": "No results found"}
+		OMDB_API_ERROR = True
+		print_message(f"OMDB API error encountered. Stopping API calls and using cache only: No results found")
+		# Check if we have stale cache to use
+		if cache_key in SHOW_CACHE and 'episodes' in SHOW_CACHE[cache_key] and season_key in SHOW_CACHE[cache_key]['episodes']:
+			print_message(f"Using stale cached episode info for '{show_name}' Season {season} due to API error")
+			return SHOW_CACHE[cache_key]['episodes'][season_key]
+		return error_result
 		
 	# Get the first result's exact title
 	exact_title = search_results["Search"][0]["Title"]
@@ -161,7 +341,30 @@ def get_episode_info(show_name: str, season: int) -> dict:
 		"Season": season
 	}
 	response = requests.get(PLEX_GLOBALS['OMDB_API_URL'], params=params)
-	return response.json()
+	episode_info = response.json()
+	
+	# Check for errors in the episode info response
+	if episode_info.get("Response") == "False" or "Error" in episode_info:
+		# Set error flag to stop future API calls
+		OMDB_API_ERROR = True
+		print_message(f"OMDB API error encountered. Stopping API calls and using cache only: {episode_info.get('Error', 'Unknown error')}")
+		print_message(f"Skipping cache update for '{show_name}' Season {season} due to error: {episode_info.get('Error', 'Unknown error')}")
+		# Check if we have stale cache to use
+		if cache_key in SHOW_CACHE and 'episodes' in SHOW_CACHE[cache_key] and season_key in SHOW_CACHE[cache_key]['episodes']:
+			print_message(f"Using stale cached episode info for '{show_name}' Season {season} due to API error")
+			return SHOW_CACHE[cache_key]['episodes'][season_key]
+		return episode_info
+	
+	# Only update cache if the response is successful (no errors)
+	if episode_info.get("Response") == "True" and "Error" not in episode_info:
+		if cache_key not in SHOW_CACHE:
+			SHOW_CACHE[cache_key] = {'episodes': {}}
+		if 'episodes' not in SHOW_CACHE[cache_key]:
+			SHOW_CACHE[cache_key]['episodes'] = {}
+		SHOW_CACHE[cache_key]['episodes'][season_key] = episode_info
+		SHOW_CACHE[cache_key]['last_updated'] = datetime.datetime.now().isoformat()
+	
+	return episode_info
 
 def analyze_local_shows() -> Dict[str, Dict[int, Set[str]]]:
 	"""
@@ -370,6 +573,15 @@ def run_media_library_analyzer(args, file_location):
 	logs_dir = file_location / 'logs'
 	logs_dir.mkdir(exist_ok=True)
 	PLEX_GLOBALS['logs_dir'] = logs_dir
+	
+	# Set cache file path at project root
+	project_root = Path(__file__).parent.parent
+	cache_dir = project_root / 'cache'
+	cache_dir.mkdir(exist_ok=True)
+	PLEX_GLOBALS['cache_file'] = cache_dir / 'media_cache.json'
+	
+	# Load existing cache
+	load_show_cache()
 
 	# Log script execution to cron.log
 	log_cron_message("media_library_analyzer.py", vars(args))
@@ -485,12 +697,25 @@ def run_media_library_analyzer(args, file_location):
 	# Use a fixed filename that will be overwritten each time
 	output_file = logs_dir / "missing-episodes.md"
 
+	# Check if file was updated less than a day ago
+	if output_file.exists():
+		file_mtime = datetime.datetime.fromtimestamp(output_file.stat().st_mtime)
+		time_diff = datetime.datetime.now() - file_mtime
+		if time_diff.total_seconds() < 86400:  # 86400 seconds = 1 day
+			print_message(f"\nSkipping update: {output_file} was updated less than a day ago ({time_diff.total_seconds()/3600:.1f} hours ago)")
+			# Save cache after all updates
+			save_show_cache()
+			return
+
 	# Write to file
 	with open(output_file, "w") as f:
 		f.write("# Missing TV Show Episodes and Movies\n\n")
 		f.write(markdown_table)
 		f.write("\n".join(summary_lines))
 		f.write(f"\n\n---\nLast updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+	# Save cache after all updates
+	save_show_cache()
 
 	print_message(f"\nAnalysis complete! Results written to {output_file}")
 

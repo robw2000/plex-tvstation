@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import re
 import time
+import datetime
 import requests
 
 from media_library_analyzer import PLEX_GLOBALS
@@ -290,6 +291,15 @@ def generate_report(ssn):
 	"""
 	Generates a comprehensive report of the Plex library, including file sizes.
 	"""
+	# Check if markdown file was updated less than a day ago
+	markdown_file_path = Path(PLEX_GLOBALS['markdown_file'])
+	if markdown_file_path.exists():
+		file_mtime = datetime.datetime.fromtimestamp(markdown_file_path.stat().st_mtime)
+		time_diff = datetime.datetime.now() - file_mtime
+		if time_diff.total_seconds() < 86400:  # 86400 seconds = 1 day
+			log_message(f"Skipping update: {markdown_file_path} was updated less than a day ago ({time_diff.total_seconds()/3600:.1f} hours ago)")
+			return
+	
 	# Clear existing log file and markdown file
 	clear_log()
 	clear_markdown()
