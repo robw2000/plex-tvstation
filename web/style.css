@@ -165,24 +165,50 @@ tbody tr:nth-child(even):hover {
 	background-color: #f0f0f0;
 }
 
-/* Search container */
-.search-container {
+/* Filter container */
+.filter-container {
 	margin: 1.5rem 0;
+	display: flex;
+	gap: 1rem;
+	flex-wrap: wrap;
+	align-items: center;
 }
 
-.search-container input {
-	width: 100%;
+.filter-container input {
+	flex: 1;
+	min-width: 200px;
 	max-width: 400px;
 	padding: 0.75rem;
 	font-size: 1rem;
-	border: 2px solid #ecf0f1;
+	border: 2px solid #2c3e50;
 	border-radius: 4px;
 	transition: border-color 0.2s;
 }
 
-.search-container input:focus {
+.filter-container input:focus {
 	outline: none;
 	border-color: #3498db;
+}
+
+.filter-container select {
+	min-width: 180px;
+	padding: 0.75rem;
+	font-size: 1rem;
+	border: 2px solid #2c3e50;
+	border-radius: 4px;
+	background-color: white;
+	color: #333;
+	cursor: pointer;
+	transition: border-color 0.2s;
+}
+
+.filter-container select:focus {
+	outline: none;
+	border-color: #3498db;
+}
+
+.filter-container select:hover {
+	border-color: #34495e;
 }
 
 /* Sortable table headers */

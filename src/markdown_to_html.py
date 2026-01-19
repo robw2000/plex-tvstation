@@ -187,9 +187,12 @@ def generate_html_page(title, content_html, current_page):
 	# Add search field and JavaScript for movies and TV pages
 	javascript = ''
 	if current_page in ('movies', 'tv'):
-		# Insert search field before the first table
-		search_field = '''<div class="search-container">
+		# Insert search field and genre filter before the first table
+		search_field = '''<div class="filter-container">
 		<input type="text" id="search-input" placeholder="Search..." autocomplete="off">
+		<select id="genre-filter">
+			<option value="">Filter Genre</option>
+		</select>
 	</div>'''
 		# Find the first table-container and insert search before it
 		if '<div class="table-container">' in content_html:
@@ -313,44 +316,99 @@ def generate_html_page(title, content_html, current_page):
 	// Initial sort by title (column 0)
 	sortTable(0, 'asc');
 	
-	// Search functionality - only search the main table
-	const searchInput = document.getElementById('search-input');
-	if (searchInput) {
-		// Store original rows for reset
-		const originalRows = getRows();
-		
-		let searchTimeout;
-		searchInput.addEventListener('input', (e) => {
-			const query = e.target.value.trim().toLowerCase();
-			
-			clearTimeout(searchTimeout);
-			
-			if (query.length < 2) {
-				// Show all rows if less than 2 characters
-				const currentRows = getRows();
-				currentRows.forEach(row => {
-					row.style.display = '';
-				});
-				return;
-			}
-			
-			// Filter rows in the main table only
-			searchTimeout = setTimeout(() => {
-				const currentRows = getRows();
-				currentRows.forEach(row => {
-					// Only filter rows that belong to this table's tbody
-					if (row.parentElement === tbody) {
-						const cells = row.querySelectorAll('td');
-						const rowText = Array.from(cells).map(cell => cell.textContent.toLowerCase()).join(' ');
-						
-						if (rowText.includes(query)) {
-							row.style.display = '';
-						} else {
-							row.style.display = 'none';
-						}
+	// Extract genres and populate dropdown
+	const genreFilter = document.getElementById('genre-filter');
+	const allRows = getRows();
+	const genresSet = new Set();
+	
+	// Find the genres column by looking for "Genres" in header text
+	const headerCells = headers.length > 0 ? headers[0].parentElement.querySelectorAll('th') : [];
+	let genresColumnIndex = -1;
+	for (let i = 0; i < headerCells.length; i++) {
+		if (headerCells[i].textContent.toLowerCase().includes('genre')) {
+			genresColumnIndex = i;
+			break;
+		}
+	}
+	// Fallback to last column if not found
+	if (genresColumnIndex === -1) {
+		genresColumnIndex = headerCells.length - 1;
+	}
+	
+	allRows.forEach(row => {
+		if (row.parentElement === tbody) {
+			const cells = row.querySelectorAll('td');
+			if (cells[genresColumnIndex]) {
+				const genresText = cells[genresColumnIndex].textContent;
+				// Split by comma and add each genre
+				genresText.split(',').forEach(genre => {
+					const trimmed = genre.trim();
+					if (trimmed) {
+						genresSet.add(trimmed);
 					}
 				});
+			}
+		}
+	});
+	
+	// Sort genres and add to dropdown
+	const sortedGenres = Array.from(genresSet).sort();
+	sortedGenres.forEach(genre => {
+		const option = document.createElement('option');
+		option.value = genre;
+		option.textContent = genre;
+		genreFilter.appendChild(option);
+	});
+	
+	// Combined filter function
+	function applyFilters() {
+		const searchQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
+		const selectedGenre = genreFilter ? genreFilter.value : '';
+		
+		const currentRows = getRows();
+		currentRows.forEach(row => {
+			if (row.parentElement === tbody) {
+				const cells = row.querySelectorAll('td');
+				let showRow = true;
+				
+				// Apply search filter (title and year only)
+				if (searchQuery.length >= 2) {
+					const searchText = (cells[0] ? cells[0].textContent.toLowerCase() : '') + ' ' + (cells[1] ? cells[1].textContent.toLowerCase() : '');
+					if (!searchText.includes(searchQuery)) {
+						showRow = false;
+					}
+				}
+				
+				// Apply genre filter
+				if (selectedGenre && showRow) {
+					const genresText = cells[genresColumnIndex] ? cells[genresColumnIndex].textContent : '';
+					const genres = genresText.split(',').map(g => g.trim());
+					if (!genres.includes(selectedGenre)) {
+						showRow = false;
+					}
+				}
+				
+				row.style.display = showRow ? '' : 'none';
+			}
+		});
+	}
+	
+	// Search functionality
+	const searchInput = document.getElementById('search-input');
+	if (searchInput) {
+		let searchTimeout;
+		searchInput.addEventListener('input', (e) => {
+			clearTimeout(searchTimeout);
+			searchTimeout = setTimeout(() => {
+				applyFilters();
 			}, 100);
+		});
+	}
+	
+	// Genre filter functionality
+	if (genreFilter) {
+		genreFilter.addEventListener('change', () => {
+			applyFilters();
 		});
 	}
 })();
@@ -427,8 +485,32 @@ def split_library_media(md_content):
 					break
 			
 			if genre_start:
-				movies_content.append('')
-				movies_content.extend(lines[storage_start:genre_start])
+				# Find "Top 10 Largest Movies" section
+				movies_storage_lines = []
+				in_movies_section = False
+				for i in range(storage_start, genre_start):
+					line = lines[i]
+					if 'Top 10 Largest Movies' in line:
+						in_movies_section = True
+						movies_storage_lines.append(line)
+					elif in_movies_section:
+						# Stop when we hit the next ### section (TV Shows)
+						if line.strip().startswith('###'):
+							break
+						movies_storage_lines.append(line)
+				
+				if movies_storage_lines:
+					movies_content.append('')
+					movies_content.append('## Storage Statistics')
+					movies_content.append('')
+					# Include the bullet point before Top 10 Largest Movies
+					for i in range(storage_start, genre_start):
+						if 'Top 10 Largest Movies' in lines[i]:
+							# Include the line before (the bullet point)
+							if i > storage_start:
+								movies_content.append(lines[i-1])
+							break
+					movies_content.extend(movies_storage_lines)
 	
 	# Extract TV section
 	tv_content = []
