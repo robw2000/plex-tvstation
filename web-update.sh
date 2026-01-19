@@ -1,13 +1,7 @@
-# Copy content to web
-mkdir -p web/content
+#!/bin/bash
+# Update the static website with current log data
 
-cp logs/tv-station.md web/content/tv-station.md
-cp logs/library-media.md web/content/library-media.md
-cp logs/missing-episodes.md web/content/missing-episodes.md
+cd "$HOME/repos/plex-tvstation" || exit 1
 
-# Commit and push
-git stash
-git add web/content
-git commit -m "Update web content"
-git push
-git stash apply
+# Run the markdown to HTML converter
+python3 src/markdown_to_html.py
