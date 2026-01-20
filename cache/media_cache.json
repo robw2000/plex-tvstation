@@ -1,1 +1,231 @@
-{}
+{
+  "30 Rock": {
+    "episodes": {
+      "season_1": {
+        "Title": "30 Rock",
+        "Season": "1",
+        "totalSeasons": "7",
+        "Episodes": [
+          {
+            "Title": "Unaired Pilot",
+            "Released": "2006-10-11",
+            "Episode": "0",
+            "imdbRating": "N/A",
+            "imdbID": "tt1527242"
+          },
+          {
+            "Title": "Pilot",
+            "Released": "2006-10-11",
+            "Episode": "1",
+            "imdbRating": "7.3",
+            "imdbID": "tt0849809"
+          },
+          {
+            "Title": "The Aftermath",
+            "Released": "2006-10-18",
+            "Episode": "2",
+            "imdbRating": "7.5",
+            "imdbID": "tt0883001"
+          },
+          {
+            "Title": "Blind Date",
+            "Released": "2006-10-25",
+            "Episode": "3",
+            "imdbRating": "7.8",
+            "imdbID": "tt0865981"
+          },
+          {
+            "Title": "Jack the Writer",
+            "Released": "2006-11-01",
+            "Episode": "4",
+            "imdbRating": "7.4",
+            "imdbID": "tt0883000"
+          },
+          {
+            "Title": "Jack-Tor",
+            "Released": "2006-11-16",
+            "Episode": "5",
+            "imdbRating": "8.0",
+            "imdbID": "tt0882999"
+          },
+          {
+            "Title": "Jack Meets Dennis",
+            "Released": "2006-11-30",
+            "Episode": "6",
+            "imdbRating": "7.6",
+            "imdbID": "tt0910580"
+          },
+          {
+            "Title": "Tracy Does Conan",
+            "Released": "2006-12-07",
+            "Episode": "7",
+            "imdbRating": "8.2",
+            "imdbID": "tt0876931"
+          },
+          {
+            "Title": "The Break-Up",
+            "Released": "2006-12-14",
+            "Episode": "8",
+            "imdbRating": "7.7",
+            "imdbID": "tt0905647"
+          },
+          {
+            "Title": "The Baby Show",
+            "Released": "2007-01-04",
+            "Episode": "9",
+            "imdbRating": "7.9",
+            "imdbID": "tt0931394"
+          },
+          {
+            "Title": "The Rural Juror",
+            "Released": "2007-01-11",
+            "Episode": "10",
+            "imdbRating": "7.9",
+            "imdbID": "tt0915758"
+          },
+          {
+            "Title": "The Head and the Hair",
+            "Released": "2007-01-18",
+            "Episode": "11",
+            "imdbRating": "8.1",
+            "imdbID": "tt0920916"
+          },
+          {
+            "Title": "Black Tie",
+            "Released": "2007-02-01",
+            "Episode": "12",
+            "imdbRating": "8.4",
+            "imdbID": "tt0909393"
+          },
+          {
+            "Title": "Up All Night",
+            "Released": "2007-02-08",
+            "Episode": "13",
+            "imdbRating": "7.9",
+            "imdbID": "tt0944245"
+          },
+          {
+            "Title": "The C Word",
+            "Released": "2007-02-15",
+            "Episode": "14",
+            "imdbRating": "7.7",
+            "imdbID": "tt0892439"
+          },
+          {
+            "Title": "Hard Ball",
+            "Released": "2007-02-22",
+            "Episode": "15",
+            "imdbRating": "8.3",
+            "imdbID": "tt0944244"
+          },
+          {
+            "Title": "The Source Awards",
+            "Released": "2007-03-01",
+            "Episode": "16",
+            "imdbRating": "7.7",
+            "imdbID": "tt0971260"
+          },
+          {
+            "Title": "The Fighting Irish",
+            "Released": "2007-03-08",
+            "Episode": "17",
+            "imdbRating": "7.8",
+            "imdbID": "tt0974983"
+          },
+          {
+            "Title": "Fireworks",
+            "Released": "2007-04-05",
+            "Episode": "18",
+            "imdbRating": "8.1",
+            "imdbID": "tt0971259"
+          },
+          {
+            "Title": "Corporate Crush",
+            "Released": "2007-04-12",
+            "Episode": "19",
+            "imdbRating": "7.7",
+            "imdbID": "tt1001596"
+          },
+          {
+            "Title": "Cleveland",
+            "Released": "2007-04-19",
+            "Episode": "20",
+            "imdbRating": "8.0",
+            "imdbID": "tt1001595"
+          },
+          {
+            "Title": "Hiatus",
+            "Released": "2007-04-26",
+            "Episode": "21",
+            "imdbRating": "8.1",
+            "imdbID": "tt1001571"
+          }
+        ],
+        "Response": "True"
+      }
+    },
+    "show_info": {
+      "Title": "30 Rock",
+      "Year": "2006–2013",
+      "Rated": "TV-14",
+      "Released": "10 Sep 2006",
+      "Runtime": "22 min",
+      "Genre": "Comedy",
+      "Director": "N/A",
+      "Writer": "Tina Fey",
+      "Actors": "Tina Fey, Alec Baldwin, Tracy Morgan",
+      "Plot": "Liz Lemon, head writer of the sketch-comedy show \"TGS with Tracy Jordan\", must deal with an arrogant new boss and a crazy new star while trying to run a successful television show without losing her mind.",
+      "Language": "English, Irish Gaelic",
+      "Country": "United States",
+      "Awards": "Won 16 Primetime Emmys. 101 wins & 368 nominations total",
+      "Poster": "https://m.media-amazon.com/images/M/MV5BMTQ4NDQ4OTUzOV5BMl5BanBnXkFtZTcwMjMzMTUyNw@@._V1_SX300.jpg",
+      "Ratings": [
+        {
+          "Source": "Internet Movie Database",
+          "Value": "8.3/10"
+        }
+      ],
+      "Metascore": "N/A",
+      "imdbRating": "8.3",
+      "imdbVotes": "136,978",
+      "imdbID": "tt0496424",
+      "Type": "series",
+      "totalSeasons": "7",
+      "Response": "True"
+    },
+    "last_updated": "2026-01-19T23:00:21.855272"
+  },
+  "Aeon Flux": {
+    "episodes": {},
+    "show_info": {
+      "Title": "Æon Flux",
+      "Year": "1991–1995",
+      "Rated": "TV-14",
+      "Released": "30 Jun 1991",
+      "Runtime": "30 min",
+      "Genre": "Animation, Action, Adventure",
+      "Director": "N/A",
+      "Writer": "Peter Chung",
+      "Actors": "Denise Poirier, John Rafter Lee, Max Redmond",
+      "Plot": "There is a mysterious and immoral secret agent from the country of Monica. Her motives and background remain unexplained, as do those of her antagonist/lover, Trevor Goodchild.",
+      "Language": "English",
+      "Country": "United States",
+      "Awards": "N/A",
+      "Poster": "https://m.media-amazon.com/images/M/MV5BNTBiZWUwOTEtNDNlMy00Yjk3LTg5MTctNjgyZDYyZmNiYWY2XkEyXkFqcGc@._V1_SX300.jpg",
+      "Ratings": [
+        {
+          "Source": "Internet Movie Database",
+          "Value": "7.8/10"
+        }
+      ],
+      "Metascore": "N/A",
+      "imdbRating": "7.8",
+      "imdbVotes": "7,743",
+      "imdbID": "tt0111873",
+      "Type": "series",
+      "totalSeasons": "3",
+      "Response": "True"
+    },
+    "last_updated": "2026-01-19T23:00:22.034638"
+  }
+}
