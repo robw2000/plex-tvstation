@@ -175,6 +175,8 @@ def generate_html_page(title, content_html, current_page):
 		('index.html', 'Home', current_page == 'index'),
 		('movies.html', 'Movies', current_page == 'movies'),
 		('tv.html', 'TV Shows', current_page == 'tv'),
+		('movie-wishlist.html', 'Movie Wishlist', current_page == 'movie-wishlist'),
+		('tv-wishlist.html', 'TV Wishlist', current_page == 'tv-wishlist'),
 		('missing-episodes.html', 'Missing Episodes', current_page == 'missing-episodes'),
 	]
 	
@@ -184,9 +186,9 @@ def generate_html_page(title, content_html, current_page):
 		nav_html += f'<li><a href="{href}"{active_class}>{label}</a></li>'
 	nav_html += '</ul></nav>'
 	
-	# Add search field and JavaScript for movies and TV pages
+	# Add search field and JavaScript for movies, TV, and wishlist pages
 	javascript = ''
-	if current_page in ('movies', 'tv'):
+	if current_page in ('movies', 'tv', 'movie-wishlist', 'tv-wishlist'):
 		# Insert search field and genre filter before the first table
 		search_field = '''<div class="filter-container">
 		<input type="text" id="search-input" placeholder="Search..." autocomplete="off">
@@ -438,8 +440,79 @@ def generate_html_page(title, content_html, current_page):
 </html>'''
 
 
+def filter_table_by_size(lines, size_column_index, exclude_zero=True):
+	"""
+	Filter a markdown table to exclude or include only zero-size rows.
+	
+	Args:
+		lines: List of lines from markdown content
+		size_column_index: Index of the file size column (0-based)
+		exclude_zero: If True, exclude zero-size rows; if False, include only zero-size rows
+	
+	Returns:
+		Filtered list of lines
+	"""
+	if not lines:
+		return lines
+	
+	result = []
+	i = 0
+	
+	while i < len(lines):
+		line = lines[i]
+		
+		# Check if this is the start of a table
+		if line.strip().startswith('|') and 'Title' in line:
+			# Found table header - include it and separator
+			result.append(line)
+			i += 1
+			
+			# Find separator line
+			if i < len(lines) and lines[i].strip().startswith('|'):
+				result.append(lines[i])
+				i += 1
+			
+			# Now filter data rows
+			while i < len(lines) and lines[i].strip().startswith('|'):
+				data_line = lines[i]
+				cells = [cell.strip() for cell in data_line.split('|')[1:-1]]
+				
+				if len(cells) > size_column_index:
+					size_str = cells[size_column_index].strip()
+					# Check if size is zero (0.00 B, 0 B, etc.)
+					is_zero = False
+					if size_str.startswith('0'):
+						# Parse the size value
+						try:
+							# Extract number part - match patterns like "0.00 B", "0 B", etc.
+							size_match = re.match(r'([\d.]+)\s*(TB|GB|MB|KB|B)?', size_str, re.IGNORECASE)
+							if size_match:
+								size_value = float(size_match.group(1))
+								if size_value == 0.0:
+									is_zero = True
+						except (ValueError, AttributeError):
+							pass
+					
+					# Include or exclude based on filter
+					if exclude_zero and not is_zero:
+						result.append(data_line)
+					elif not exclude_zero and is_zero:
+						result.append(data_line)
+				else:
+					# Malformed row, include it anyway
+					result.append(data_line)
+				
+				i += 1
+		else:
+			# Not a table line, include as-is
+			result.append(line)
+			i += 1
+	
+	return result
+
+
 def split_library_media(md_content):
-	"""Split library media markdown into movies and TV sections."""
+	"""Split library media markdown into movies and TV sections, and create wishlist pages."""
 	lines = md_content.split('\n')
 	
 	# Find the header and generated date
@@ -464,6 +537,8 @@ def split_library_media(md_content):
 	
 	# Extract movies section
 	movies_content = []
+	movies_wishlist_content = []
+	
 	if movies_start is not None:
 		movies_content.append('# Plex Library Report')
 		movies_content.append('')
@@ -471,9 +546,44 @@ def split_library_media(md_content):
 			movies_content.append(generated_line)
 			movies_content.append('')
 		
+		movies_wishlist_content.append('# Movie Wishlist')
+		movies_wishlist_content.append('')
+		if generated_line:
+			movies_wishlist_content.append(generated_line)
+			movies_wishlist_content.append('')
+		movies_wishlist_content.append('This page shows movies that are represented by empty folders (zero file size).')
+		movies_wishlist_content.append('')
+		
 		# Include everything from Movies to just before TV Shows
 		end_idx = tv_start if tv_start is not None else storage_start if storage_start is not None else len(lines)
-		movies_content.extend(lines[movies_start:end_idx])
+		movies_section_lines = lines[movies_start:end_idx]
+		
+		# Filter out zero-size movies from main page (size column is index 3: Title, Year, Watched, File Size, Genres)
+		movies_content_lines = filter_table_by_size(movies_section_lines, 3, exclude_zero=True)
+		movies_content.extend(movies_content_lines)
+		
+		# Create wishlist with only zero-size movies
+		movies_wishlist_lines = filter_table_by_size(movies_section_lines, 3, exclude_zero=False)
+		# Find where the table starts in the wishlist
+		wishlist_table_start = None
+		for i, line in enumerate(movies_wishlist_lines):
+			if line.strip().startswith('|') and 'Title' in line:
+				wishlist_table_start = i
+				break
+		if wishlist_table_start is not None:
+			# Find where the table ends
+			wishlist_table_end = wishlist_table_start + 1
+			while wishlist_table_end < len(movies_wishlist_lines):
+				if movies_wishlist_lines[wishlist_table_end].strip().startswith('|'):
+					wishlist_table_end += 1
+				else:
+					break
+			# Only include the table in wishlist
+			if wishlist_table_end > wishlist_table_start + 2:  # At least header, separator, and one data row
+				movies_wishlist_content.append('### Movie Wishlist')
+				movies_wishlist_content.append('')
+				# Include the filtered table
+				movies_wishlist_content.extend(movies_wishlist_lines[wishlist_table_start:wishlist_table_end])
 		
 		# Add storage statistics related to movies
 		if storage_start is not None:
@@ -514,6 +624,8 @@ def split_library_media(md_content):
 	
 	# Extract TV section
 	tv_content = []
+	tv_wishlist_content = []
+	
 	if tv_start is not None:
 		tv_content.append('# Plex Library Report')
 		tv_content.append('')
@@ -521,9 +633,44 @@ def split_library_media(md_content):
 			tv_content.append(generated_line)
 			tv_content.append('')
 		
+		tv_wishlist_content.append('# TV Wishlist')
+		tv_wishlist_content.append('')
+		if generated_line:
+			tv_wishlist_content.append(generated_line)
+			tv_wishlist_content.append('')
+		tv_wishlist_content.append('This page shows TV shows that are represented by empty folders (zero file size).')
+		tv_wishlist_content.append('')
+		
 		# Include everything from TV Shows to just before Storage Statistics
 		end_idx = storage_start if storage_start is not None else len(lines)
-		tv_content.extend(lines[tv_start:end_idx])
+		tv_section_lines = lines[tv_start:end_idx]
+		
+		# Filter out zero-size TV shows from main page (size column is index 4: Title, Episodes, Watched, % Watched, Total Size, Avg Episode Size, Genres)
+		tv_content_lines = filter_table_by_size(tv_section_lines, 4, exclude_zero=True)
+		tv_content.extend(tv_content_lines)
+		
+		# Create wishlist with only zero-size TV shows
+		tv_wishlist_lines = filter_table_by_size(tv_section_lines, 4, exclude_zero=False)
+		# Find where the table starts in the wishlist
+		wishlist_table_start = None
+		for i, line in enumerate(tv_wishlist_lines):
+			if line.strip().startswith('|') and 'Title' in line:
+				wishlist_table_start = i
+				break
+		if wishlist_table_start is not None:
+			# Find where the table ends
+			wishlist_table_end = wishlist_table_start + 1
+			while wishlist_table_end < len(tv_wishlist_lines):
+				if tv_wishlist_lines[wishlist_table_end].strip().startswith('|'):
+					wishlist_table_end += 1
+				else:
+					break
+			# Only include the table in wishlist
+			if wishlist_table_end > wishlist_table_start + 2:  # At least header, separator, and one data row
+				tv_wishlist_content.append('### TV Wishlist')
+				tv_wishlist_content.append('')
+				# Include the filtered table
+				tv_wishlist_content.extend(tv_wishlist_lines[wishlist_table_start:wishlist_table_end])
 		
 		# Add storage statistics related to TV
 		if storage_start is not None:
@@ -551,7 +698,7 @@ def split_library_media(md_content):
 					tv_content.append('')
 					tv_content.extend(tv_storage_lines)
 	
-	return '\n'.join(movies_content), '\n'.join(tv_content)
+	return '\n'.join(movies_content), '\n'.join(tv_content), '\n'.join(movies_wishlist_content), '\n'.join(tv_wishlist_content)
 
 
 def main():
@@ -570,8 +717,8 @@ def main():
 		with open(library_media_md, 'r', encoding='utf-8') as f:
 			md_content = f.read()
 		
-		# Split into movies and TV sections
-		movies_md, tv_md = split_library_media(md_content)
+		# Split into movies and TV sections, and create wishlists
+		movies_md, tv_md, movies_wishlist_md, tv_wishlist_md = split_library_media(md_content)
 		
 		# Generate movies page
 		if movies_md:
@@ -588,6 +735,22 @@ def main():
 			with open(web_dir / 'tv.html', 'w', encoding='utf-8') as f:
 				f.write(html_page)
 			print(f"Generated tv.html")
+		
+		# Generate movie wishlist page
+		if movies_wishlist_md and movies_wishlist_md.strip():
+			html_content = markdown_to_html(movies_wishlist_md)
+			html_page = generate_html_page('Movie Wishlist', html_content, 'movie-wishlist')
+			with open(web_dir / 'movie-wishlist.html', 'w', encoding='utf-8') as f:
+				f.write(html_page)
+			print(f"Generated movie-wishlist.html")
+		
+		# Generate TV wishlist page
+		if tv_wishlist_md and tv_wishlist_md.strip():
+			html_content = markdown_to_html(tv_wishlist_md)
+			html_page = generate_html_page('TV Wishlist', html_content, 'tv-wishlist')
+			with open(web_dir / 'tv-wishlist.html', 'w', encoding='utf-8') as f:
+				f.write(html_page)
+			print(f"Generated tv-wishlist.html")
 	else:
 		print(f"Warning: {library_media_md} not found", file=sys.stderr)
 	
@@ -610,6 +773,8 @@ def main():
 <ul>
 	<li><a href="movies.html">Movies</a> - View your movie library</li>
 	<li><a href="tv.html">TV Shows</a> - View your TV show library</li>
+	<li><a href="movie-wishlist.html">Movie Wishlist</a> - Movies you want to get (empty folders)</li>
+	<li><a href="tv-wishlist.html">TV Wishlist</a> - TV shows you want to get (empty folders)</li>
 	<li><a href="missing-episodes.html">Missing Episodes</a> - View missing TV episodes and movies</li>
 </ul>'''
 	index_html = generate_html_page('Home', index_content, 'index')

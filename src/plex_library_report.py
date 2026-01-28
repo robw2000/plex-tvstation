@@ -161,13 +161,28 @@ def calculate_directory_size(directory, title=None, year=None):
 					return 0
 		elif str(tv_show_path) in str(directory):
 			# For TV shows: look for directories starting with the title
+			# Try exact match first, then startswith
+			matched_dir = None
 			for item in Path(directory).iterdir():
-				if item.is_dir() and item.name.startswith(title):
-					directory = item
-					break
-			else:
+				if item.is_dir():
+					# Try exact match first
+					if item.name == title:
+						matched_dir = item
+						break
+					# Then try startswith (but be more careful)
+					elif item.name.startswith(title):
+						# Make sure it's not a partial word match
+						# Check if next character is space, parenthesis, or end of string
+						if len(item.name) == len(title) or item.name[len(title)] in (' ', '(', '-', '_'):
+							if matched_dir is None:
+								matched_dir = item
+							# Prefer shorter matches (more exact)
+							elif len(item.name) < len(matched_dir.name):
+								matched_dir = item
+			if matched_dir is None:
 				# No match found
 				return 0
+			directory = matched_dir
 	
 	# Recursively calculate size of all files in the directory
 	for dirpath, dirnames, filenames in walk(directory):

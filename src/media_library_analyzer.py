@@ -129,7 +129,7 @@ def is_cache_fresh(show_name: str) -> bool:
 		last_updated = datetime.datetime.fromisoformat(cache_entry['last_updated'])
 		now = datetime.datetime.now()
 		age = now - last_updated
-		return age.days < 7
+		return age.days < 30
 	except (ValueError, KeyError):
 		return False
 
