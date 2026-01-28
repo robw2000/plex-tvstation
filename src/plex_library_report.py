@@ -143,7 +143,27 @@ def calculate_directory_size(directory, title=None, year=None):
 	
 	# If title is provided, first find the matching directory
 	if title is not None:
-		if year is not None and str(movies_path) in str(directory):
+		# Check if this is a movies path (use Path comparison for accuracy)
+		# Convert both to Path objects and compare
+		dir_path = Path(directory)
+		movies_path_obj = Path(movies_path)
+		tv_show_path_obj = Path(tv_show_path)
+		
+		# Resolve paths to handle symlinks and get absolute paths
+		try:
+			dir_resolved = dir_path.resolve()
+			movies_resolved = movies_path_obj.resolve()
+			tv_resolved = tv_show_path_obj.resolve()
+		except (OSError, RuntimeError):
+			# If resolve fails, use the paths as-is
+			dir_resolved = dir_path
+			movies_resolved = movies_path_obj
+			tv_resolved = tv_show_path_obj
+		
+		is_movies_path = dir_resolved == movies_resolved or str(movies_resolved) in str(dir_resolved)
+		is_tv_path = dir_resolved == tv_resolved or str(tv_resolved) in str(dir_resolved)
+		
+		if year is not None and is_movies_path:
 			# For movies: look for "Title (Year)" format
 			movie_dir_pattern = f"{title} ({year})"
 			for item in Path(directory).iterdir():
@@ -159,7 +179,7 @@ def calculate_directory_size(directory, title=None, year=None):
 				else:
 					# No match found
 					return 0
-		elif str(tv_show_path) in str(directory):
+		elif is_tv_path:
 			# For TV shows: look for directories starting with the title
 			# Try exact match first, then startswith
 			matched_dir = None
