@@ -578,8 +578,8 @@ def split_library_media(md_content):
 					wishlist_table_end += 1
 				else:
 					break
-			# Only include the table in wishlist
-			if wishlist_table_end > wishlist_table_start + 2:  # At least header, separator, and one data row
+			# Only include the table in wishlist if we have at least header and separator
+			if wishlist_table_end > wishlist_table_start + 1:  # At least header and separator
 				movies_wishlist_content.append('### Movie Wishlist')
 				movies_wishlist_content.append('')
 				# Include the filtered table
@@ -665,8 +665,8 @@ def split_library_media(md_content):
 					wishlist_table_end += 1
 				else:
 					break
-			# Only include the table in wishlist
-			if wishlist_table_end > wishlist_table_start + 2:  # At least header, separator, and one data row
+			# Only include the table in wishlist if we have at least header and separator
+			if wishlist_table_end > wishlist_table_start + 1:  # At least header and separator
 				tv_wishlist_content.append('### TV Wishlist')
 				tv_wishlist_content.append('')
 				# Include the filtered table
@@ -736,21 +736,39 @@ def main():
 				f.write(html_page)
 			print(f"Generated tv.html")
 		
-		# Generate movie wishlist page
-		if movies_wishlist_md and movies_wishlist_md.strip():
-			html_content = markdown_to_html(movies_wishlist_md)
-			html_page = generate_html_page('Movie Wishlist', html_content, 'movie-wishlist')
-			with open(web_dir / 'movie-wishlist.html', 'w', encoding='utf-8') as f:
-				f.write(html_page)
-			print(f"Generated movie-wishlist.html")
+		# Generate movie wishlist page (always create, even if empty)
+		if not movies_wishlist_md or not movies_wishlist_md.strip():
+			# Create empty wishlist page with message
+			movies_wishlist_md = '''# Movie Wishlist
+
+This page shows movies that are represented by empty folders (zero file size).
+
+## Movie Wishlist
+
+No movies in wishlist - all movies have been downloaded!
+'''
+		html_content = markdown_to_html(movies_wishlist_md)
+		html_page = generate_html_page('Movie Wishlist', html_content, 'movie-wishlist')
+		with open(web_dir / 'movie-wishlist.html', 'w', encoding='utf-8') as f:
+			f.write(html_page)
+		print(f"Generated movie-wishlist.html")
 		
-		# Generate TV wishlist page
-		if tv_wishlist_md and tv_wishlist_md.strip():
-			html_content = markdown_to_html(tv_wishlist_md)
-			html_page = generate_html_page('TV Wishlist', html_content, 'tv-wishlist')
-			with open(web_dir / 'tv-wishlist.html', 'w', encoding='utf-8') as f:
-				f.write(html_page)
-			print(f"Generated tv-wishlist.html")
+		# Generate TV wishlist page (always create, even if empty)
+		if not tv_wishlist_md or not tv_wishlist_md.strip():
+			# Create empty wishlist page with message
+			tv_wishlist_md = '''# TV Wishlist
+
+This page shows TV shows that are represented by empty folders (zero file size).
+
+## TV Wishlist
+
+No TV shows in wishlist - all TV shows have been downloaded!
+'''
+		html_content = markdown_to_html(tv_wishlist_md)
+		html_page = generate_html_page('TV Wishlist', html_content, 'tv-wishlist')
+		with open(web_dir / 'tv-wishlist.html', 'w', encoding='utf-8') as f:
+			f.write(html_page)
+		print(f"Generated tv-wishlist.html")
 	else:
 		print(f"Warning: {library_media_md} not found", file=sys.stderr)
 	

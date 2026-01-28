@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Movie Wishlist</title>
+	<link rel="stylesheet" href="style.css">
+</head>
+<body>
+	<header>
+		<h1>Plex TV Station</h1>
+		<nav><ul><li><a href="index.html">Home</a></li><li><a href="movies.html">Movies</a></li><li><a href="tv.html">TV Shows</a></li><li><a href="movie-wishlist.html" class="active">Movie Wishlist</a></li><li><a href="tv-wishlist.html">TV Wishlist</a></li><li><a href="missing-episodes.html">Missing Episodes</a></li></ul></nav>
+	</header>
+	<main>
+		<h1>Movie Wishlist</h1>
+<p></p>
+<p>This page shows movies that are represented by empty folders (zero file size).</p>
+<p></p>
+<h2>Movie Wishlist</h2>
+<p></p>
+<p>No movies in wishlist - all movies have been downloaded!</p>
+<p></p>
+	</main>
+	<footer>
+		<p>Generated automatically from Plex library data</p>
+	</footer>
+	<script>
+(function() {
+	const table = document.querySelector('.sortable-table');
+	if (!table) return;
+	
+	const tbody = table.querySelector('tbody');
+	const headers = Array.from(table.querySelectorAll('.sortable-header'));
+	let currentSort = { column: 0, direction: 'asc' };
+	
+	// Function to get current rows from DOM
+	function getRows() {
+		return Array.from(tbody.querySelectorAll('tr'));
+	}
+	
+	// Remove "a" or "the" from beginning of title for sorting
+	function getSortKey(text) {
+		if (!text) return '';
+		const lower = text.toLowerCase().trim();
+		if (lower.startsWith('the ')) {
+			return lower.substring(4);
+		} else if (lower.startsWith('a ')) {
+			return lower.substring(2);
+		}
+		return lower;
+	}
+	
+	// Parse value for sorting
+	function parseValue(cellText, columnIndex) {
+		const text = cellText.trim();
+		
+		// For title column, use sort key
+		if (columnIndex === 0) {
+			return getSortKey(text);
+		}
+		
+		// For size columns (GB, TB, MB, etc.) - check BEFORE numeric to avoid false matches
+		const sizeMatch = text.match(/([\d.]+)\s*(TB|GB|MB|KB|B)/i);
+		if (sizeMatch) {
+			const value = parseFloat(sizeMatch[1]);
+			const unit = sizeMatch[2].toUpperCase();
+			const multipliers = { 'B': 1, 'KB': 1024, 'MB': 1024*1024, 'GB': 1024*1024*1024, 'TB': 1024*1024*1024*1024 };
+			return value * (multipliers[unit] || 1);
+		}
+		
+		// For percentage columns
+		const pctMatch = text.match(/([\d.]+)%/);
+		if (pctMatch) {
+			return parseFloat(pctMatch[1]);
+		}
+		
+		// For numeric columns (Year, Episodes, etc.) - check AFTER size to avoid false matches
+		const numMatch = text.match(/^\d+/);
+		if (numMatch) {
+			return parseFloat(numMatch[0]);
+		}
+		
+		// For Yes/No columns
+		if (text.toLowerCase() === 'yes') return 1;
+		if (text.toLowerCase() === 'no') return 0;
+		
+		// Default: string comparison
+		return text.toLowerCase();
+	}
+	
+	// Sort rows
+	function sortTable(columnIndex, direction) {
+		const currentRows = getRows();
+		const sortedRows = currentRows.slice().sort((a, b) => {
+			const aCells = a.querySelectorAll('td');
+			const bCells = b.querySelectorAll('td');
+			
+			if (columnIndex >= aCells.length || columnIndex >= bCells.length) {
+				return 0;
+			}
+			
+			const aVal = parseValue(aCells[columnIndex].textContent, columnIndex);
+			const bVal = parseValue(bCells[columnIndex].textContent, columnIndex);
+			
+			let comparison = 0;
+			if (typeof aVal === 'number' && typeof bVal === 'number') {
+				comparison = aVal - bVal;
+			} else {
+				comparison = String(aVal).localeCompare(String(bVal));
+			}
+			
+			return direction === 'asc' ? comparison : -comparison;
+		});
+		
+		// Clear tbody and add sorted rows
+		tbody.innerHTML = '';
+		sortedRows.forEach(row => tbody.appendChild(row));
+		
+		// Update sort indicators
+		headers.forEach((header, idx) => {
+			const indicator = header.querySelector('.sort-indicator');
+			if (idx === columnIndex) {
+				indicator.textContent = direction === 'asc' ? ' ▲' : ' ▼';
+				header.classList.add('sorted');
+			} else {
+				indicator.textContent = '';
+				header.classList.remove('sorted');
+			}
+		});
+		
+		currentSort = { column: columnIndex, direction: direction };
+	}
+	
+	// Add click handlers to headers
+	headers.forEach((header, index) => {
+		header.style.cursor = 'pointer';
+		header.addEventListener('click', () => {
+			const newDirection = (currentSort.column === index && currentSort.direction === 'asc') ? 'desc' : 'asc';
+			sortTable(index, newDirection);
+		});
+	});
+	
+	// Initial sort by title (column 0)
+	sortTable(0, 'asc');
+	
+	// Extract genres and populate dropdown
+	const genreFilter = document.getElementById('genre-filter');
+	const allRows = getRows();
+	const genresSet = new Set();
+	
+	// Find the genres column by looking for "Genres" in header text
+	const headerCells = headers.length > 0 ? headers[0].parentElement.querySelectorAll('th') : [];
+	let genresColumnIndex = -1;
+	for (let i = 0; i < headerCells.length; i++) {
+		if (headerCells[i].textContent.toLowerCase().includes('genre')) {
+			genresColumnIndex = i;
+			break;
+		}
+	}
+	// Fallback to last column if not found
+	if (genresColumnIndex === -1) {
+		genresColumnIndex = headerCells.length - 1;
+	}
+	
+	allRows.forEach(row => {
+		if (row.parentElement === tbody) {
+			const cells = row.querySelectorAll('td');
+			if (cells[genresColumnIndex]) {
+				const genresText = cells[genresColumnIndex].textContent;
+				// Split by comma and add each genre
+				genresText.split(',').forEach(genre => {
+					const trimmed = genre.trim();
+					if (trimmed) {
+						genresSet.add(trimmed);
+					}
+				});
+			}
+		}
+	});
+	
+	// Sort genres and add to dropdown
+	const sortedGenres = Array.from(genresSet).sort();
+	sortedGenres.forEach(genre => {
+		const option = document.createElement('option');
+		option.value = genre;
+		option.textContent = genre;
+		genreFilter.appendChild(option);
+	});
+	
+	// Combined filter function
+	function applyFilters() {
+		const searchQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
+		const selectedGenre = genreFilter ? genreFilter.value : '';
+		
+		const currentRows = getRows();
+		currentRows.forEach(row => {
+			if (row.parentElement === tbody) {
+				const cells = row.querySelectorAll('td');
+				let showRow = true;
+				
+				// Apply search filter (title and year only)
+				if (searchQuery.length >= 2) {
+					const searchText = (cells[0] ? cells[0].textContent.toLowerCase() : '') + ' ' + (cells[1] ? cells[1].textContent.toLowerCase() : '');
+					if (!searchText.includes(searchQuery)) {
+						showRow = false;
+					}
+				}
+				
+				// Apply genre filter
+				if (selectedGenre && showRow) {
+					const genresText = cells[genresColumnIndex] ? cells[genresColumnIndex].textContent : '';
+					const genres = genresText.split(',').map(g => g.trim());
+					if (!genres.includes(selectedGenre)) {
+						showRow = false;
+					}
+				}
+				
+				row.style.display = showRow ? '' : 'none';
+			}
+		});
+	}
+	
+	// Search functionality
+	const searchInput = document.getElementById('search-input');
+	if (searchInput) {
+		let searchTimeout;
+		searchInput.addEventListener('input', (e) => {
+			clearTimeout(searchTimeout);
+			searchTimeout = setTimeout(() => {
+				applyFilters();
+			}, 100);
+		});
+	}
+	
+	// Genre filter functionality
+	if (genreFilter) {
+		genreFilter.addEventListener('change', () => {
+			applyFilters();
+		});
+	}
+})();
+</script>
+</body>
+</html>
