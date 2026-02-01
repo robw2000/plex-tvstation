@@ -9,15 +9,15 @@ echo "Starting full update..."
 
 # Run TV station updates
 echo "Running TV station updates..."
-./tv.sh $1
+./tv.sh "$1"
 
 # Generate media library report
 echo "Generating media library report..."
-./media_library.sh $1
+./media_library.sh "$@"
 
 # Analyze missing media
 echo "Analyzing missing media..."
-./missing_media.sh $1
+./missing_media.sh "$@"
 
 # Update web pages
 echo "Updating web pages..."

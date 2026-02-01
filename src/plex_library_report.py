@@ -348,13 +348,13 @@ def format_size(size_bytes):
 		size_bytes /= 1024.0
 	return f"{size_bytes:.2f} PB"
 
-def generate_report(ssn):
+def generate_report(ssn, force=False):
 	"""
 	Generates a comprehensive report of the Plex library, including file sizes.
 	"""
-	# Check if markdown file was updated less than a day ago
+	# Check if markdown file was updated less than a day ago, unless forced
 	markdown_file_path = Path(PLEX_GLOBALS['markdown_file'])
-	if markdown_file_path.exists():
+	if markdown_file_path.exists() and not force:
 		file_mtime = datetime.datetime.fromtimestamp(markdown_file_path.stat().st_mtime)
 		time_diff = datetime.datetime.now() - file_mtime
 		if time_diff.total_seconds() < 86400:  # 86400 seconds = 1 day
@@ -496,7 +496,7 @@ def generate_report(ssn):
 		log_message(f"{genre}: {count}")
 		write_markdown(f"| {genre} | {count} |")
 
-def run_plex_report(file_location):
+def run_plex_report(file_location, force=False):
 	# Initialize PLEX_GLOBALS
 	global PLEX_GLOBALS
 	PLEX_GLOBALS = initialize_plex_globals(file_location)
@@ -510,4 +510,4 @@ def run_plex_report(file_location):
 	test_plex_connectivity_with_fallback(ssn, PLEX_GLOBALS)
 
 	# Generate the report
-	generate_report(ssn) 
+	generate_report(ssn, force=force)

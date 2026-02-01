@@ -561,6 +561,7 @@ def run_media_library_analyzer(args, file_location):
 	
 	Arguments:
 		--log-only, -l: If specified, only log the script execution without performing analysis
+		--force: If specified, ignore freshness checks and always regenerate reports
 	"""
 	# Initialize PLEX_GLOBALS
 	initialize_plex_globals()
@@ -698,7 +699,8 @@ def run_media_library_analyzer(args, file_location):
 	output_file = logs_dir / "missing-episodes.md"
 
 	# Check if file was updated less than a day ago
-	if output_file.exists():
+	force = getattr(args, "force", False)
+	if output_file.exists() and not force:
 		file_mtime = datetime.datetime.fromtimestamp(output_file.stat().st_mtime)
 		time_diff = datetime.datetime.now() - file_mtime
 		if time_diff.total_seconds() < 86400:  # 86400 seconds = 1 day

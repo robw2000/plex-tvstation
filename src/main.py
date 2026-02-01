@@ -22,6 +22,7 @@ def main():
 	parser.add_argument('-g', '--genre',  help='Genre to filter by (e.g., comedy, action, drama)')
 	parser.add_argument('-f', '--franchise', default='', help='Franchise to filter by (e.g., star-wars, marvel)')
 	parser.add_argument('-r', '--reset', action='store_true', help='Reset watched status for all media (or filtered by franchise/genre)')
+	parser.add_argument('--force', action='store_true', help='Force regeneration of reports, ignoring freshness checks where applicable')
 	parser.add_argument('action', nargs='?', default='tvstation',
 		help="Action to perform: 'tvstation', 'slugs', 'medialibrary', 'missingmedia', 'clean', 'folders'")
 	parser.add_argument('-d', '--debug', action='store_true', help='Enable debug mode for folder creation')
@@ -35,7 +36,7 @@ def main():
 	elif args.action == 'slugs':
 		run_slug_list(file_dir)
 	elif args.action == 'medialibrary':
-		run_plex_report(file_dir)
+		run_plex_report(file_dir, force=args.force)
 	elif args.action == 'missingmedia':
 		run_media_library_analyzer(args, file_dir)
 	elif args.action == 'clean':
