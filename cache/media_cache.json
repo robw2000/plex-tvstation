@@ -227,5 +227,215 @@
       "Response": "True"
     },
     "last_updated": "2026-01-19T23:00:22.034638"
+  },
+  "2 Broke Girls": {
+    "episodes": {
+      "season_1": {
+        "Title": "2 Broke Girls",
+        "Season": "1",
+        "totalSeasons": "6",
+        "Episodes": [
+          {
+            "Title": "Pilot",
+            "Released": "2011-09-19",
+            "Episode": "1",
+            "imdbRating": "7.3",
+            "imdbID": "tt1980319"
+          },
+          {
+            "Title": "And the Break-Up Scene",
+            "Released": "2011-09-26",
+            "Episode": "2",
+            "imdbRating": "7.1",
+            "imdbID": "tt2058148"
+          },
+          {
+            "Title": "And Strokes of Goodwill",
+            "Released": "2011-10-03",
+            "Episode": "3",
+            "imdbRating": "N/A",
+            "imdbID": "tt2059336"
+          },
+          {
+            "Title": "And the Rich People Problems",
+            "Released": "2011-10-10",
+            "Episode": "4",
+            "imdbRating": "7.3",
+            "imdbID": "tt2032589"
+          },
+          {
+            "Title": "And the '90s Horse Party",
+            "Released": "2011-10-17",
+            "Episode": "5",
+            "imdbRating": "N/A",
+            "imdbID": "tt2069996"
+          },
+          {
+            "Title": "And the Disappearing Bed",
+            "Released": "2011-10-24",
+            "Episode": "6",
+            "imdbRating": "N/A",
+            "imdbID": "tt2069997"
+          },
+          {
+            "Title": "And the Pretty Problem",
+            "Released": "2011-10-31",
+            "Episode": "7",
+            "imdbRating": "N/A",
+            "imdbID": "tt2069119"
+          },
+          {
+            "Title": "And Hoarder Culture",
+            "Released": "2011-11-07",
+            "Episode": "8",
+            "imdbRating": "N/A",
+            "imdbID": "tt2086960"
+          },
+          {
+            "Title": "And the Really Petty Cash",
+            "Released": "2011-11-14",
+            "Episode": "9",
+            "imdbRating": "N/A",
+            "imdbID": "tt2100692"
+          },
+          {
+            "Title": "And the Very Christmas Thanksgiving",
+            "Released": "2011-11-21",
+            "Episode": "10",
+            "imdbRating": "N/A",
+            "imdbID": "tt2102511"
+          },
+          {
+            "Title": "And the Reality Check",
+            "Released": "2011-12-05",
+            "Episode": "11",
+            "imdbRating": "N/A",
+            "imdbID": "tt2101586"
+          },
+          {
+            "Title": "And the Pop-Up Sale",
+            "Released": "2011-12-12",
+            "Episode": "12",
+            "imdbRating": "N/A",
+            "imdbID": "tt2105089"
+          },
+          {
+            "Title": "And the Secret Ingredient",
+            "Released": "2012-01-02",
+            "Episode": "13",
+            "imdbRating": "7.0",
+            "imdbID": "tt2146011"
+          },
+          {
+            "Title": "And the Upstairs Neighbor",
+            "Released": "2012-01-16",
+            "Episode": "14",
+            "imdbRating": "N/A",
+            "imdbID": "tt2172157"
+          },
+          {
+            "Title": "And the Blind Spot",
+            "Released": "2012-02-06",
+            "Episode": "15",
+            "imdbRating": "N/A",
+            "imdbID": "tt2190491"
+          },
+          {
+            "Title": "And the Broken Hearts",
+            "Released": "2012-02-13",
+            "Episode": "16",
+            "imdbRating": "N/A",
+            "imdbID": "tt2211201"
+          },
+          {
+            "Title": "And the Kosher Cupcakes",
+            "Released": "2012-02-20",
+            "Episode": "17",
+            "imdbRating": "7.3",
+            "imdbID": "tt2229537"
+          },
+          {
+            "Title": "And the One-Night Stands",
+            "Released": "2012-02-27",
+            "Episode": "18",
+            "imdbRating": "N/A",
+            "imdbID": "tt2235829"
+          },
+          {
+            "Title": "And the Spring Break",
+            "Released": "2012-03-19",
+            "Episode": "19",
+            "imdbRating": "N/A",
+            "imdbID": "tt2279405"
+          },
+          {
+            "Title": "And the Drug Money",
+            "Released": "2012-04-09",
+            "Episode": "20",
+            "imdbRating": "N/A",
+            "imdbID": "tt2245317"
+          },
+          {
+            "Title": "And the Messy Purse Smackdown",
+            "Released": "2012-04-16",
+            "Episode": "21",
+            "imdbRating": "N/A",
+            "imdbID": "tt2268661"
+          },
+          {
+            "Title": "And the Big Buttercream Breakthrough",
+            "Released": "2012-04-30",
+            "Episode": "22",
+            "imdbRating": "N/A",
+            "imdbID": "tt2276105"
+          },
+          {
+            "Title": "And Martha Stewart Have a Ball: Part 1",
+            "Released": "2012-05-07",
+            "Episode": "23",
+            "imdbRating": "N/A",
+            "imdbID": "tt2378611"
+          },
+          {
+            "Title": "And Martha Stewart Have a Ball: Part 2",
+            "Released": "2012-05-07",
+            "Episode": "24",
+            "imdbRating": "N/A",
+            "imdbID": "tt2400523"
+          }
+        ],
+        "Response": "True"
+      }
+    },
+    "show_info": {
+      "Title": "2 Broke Girls",
+      "Year": "2011–2017",
+      "Rated": "TV-14",
+      "Released": "19 Sep 2011",
+      "Runtime": "22 min",
+      "Genre": "Comedy",
+      "Director": "N/A",
+      "Writer": "Whitney Cummings, Michael Patrick King",
+      "Actors": "Kat Dennings, Beth Behrs, Garrett Morris",
+      "Plot": "Two young women waitressing at a greasy spoon diner strike up an unlikely friendship in the hopes of launching a successful business - if only they can raise the cash.",
+      "Language": "English, Hebrew, Spanish, Arabic, Korean, Yiddish, Ukrainian",
+      "Country": "United States",
+      "Awards": "Won 1 Primetime Emmy. 3 wins & 24 nominations total",
+      "Poster": "https://m.media-amazon.com/images/M/MV5BMTYxMDA3Mzg5NV5BMl5BanBnXkFtZTgwNDIxOTcwMDI@._V1_SX300.jpg",
+      "Ratings": [
+        {
+          "Source": "Internet Movie Database",
+          "Value": "6.7/10"
+        }
+      ],
+      "Metascore": "N/A",
+      "imdbRating": "6.7",
+      "imdbVotes": "111,770",
+      "imdbID": "tt1845307",
+      "Type": "series",
+      "totalSeasons": "6",
+      "Response": "True"
+    },
+    "last_updated": "2026-02-04T20:30:18.320958"
   }
 }
